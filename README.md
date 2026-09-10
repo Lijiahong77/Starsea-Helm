@@ -195,5 +195,6 @@ git clone https://github.com/Lijiahong77/Starsea-Helm.git
 
 ## 说明
 
-- 这是一个**个人独立开发**的在研项目，目前没有 License —— 欢迎阅读与参考，但请勿直接再分发或商用。
+- 这是一个**个人独立开发的实验项目**，License 为 **All Rights Reserved（保留所有权利）**：
+  允许阅读与克隆学习，**不允许再分发、商用、修改后发布，或用于训练 AI 模型**。详见 [`LICENSE`](LICENSE)。
 - 概念图由 AI 生成（豆包），仅作视觉方向占位，非游戏内截图。

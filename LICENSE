@@ -1,0 +1,83 @@
+版权所有 © 2026 李佳鸿（Li Jiahong）
+All Rights Reserved · 保留所有权利
+
+================================================================
+简体中文（以下英文为同一内容的译本，如两者冲突以中文为准）
+================================================================
+
+本仓库（Starsea Helm / 星海舵手）是一个个人学习与研究性质的实验项目。
+本仓库的全部内容——包括但不限于源代码、设计文档、美术与音频资源，
+以及 `.workbuddy/` 目录下的开发记录——均受著作权法保护。
+
+【允许】
+
+在未对内容作任何修改的前提下，你可以：
+
+  1. 通过 GitHub 网页浏览、阅读本仓库的内容；
+  2. 将本仓库克隆到本地，用于个人的学习、阅读与技术评估。
+
+【禁止】
+
+除上述明确允许的行为外，未经著作权人事先书面许可，任何人不得：
+
+  1. 复制、再分发、公开发布、打包或镜像本仓库的任何部分；
+  2. 将本仓库内容用于任何商业用途；
+  3. 修改、改编本仓库内容，或基于其创作衍生作品并对外发布；
+  4. 将本仓库内容用于训练、微调、蒸馏或评测任何机器学习模型，
+     或以其他方式将其批量纳入数据集；
+  5. 以任何方式暗示已获得著作权人的授权、认可或合作。
+
+【关于 AI 生成内容】
+
+`docs/media/` 下的概念图由生成式 AI 产出，仅用于视觉方向占位，
+不构成对最终美术作品的承诺。
+
+【免责声明】
+
+本软件按「现状」提供，不附带任何明示或默示的担保，包括但不限于
+对适销性、特定用途适用性及不侵权的担保。因使用本软件而产生的
+任何直接或间接损失，著作权人均不承担责任。
+
+【授权咨询】
+
+如需授权，请通过 GitHub 联系仓库所有者。
+
+================================================================
+English translation (informative only; the Chinese text prevails)
+================================================================
+
+Copyright (c) 2026 Li Jiahong
+All Rights Reserved.
+
+This repository (Starsea Helm) is a personal, experimental project for
+learning and research. All contents — including but not limited to source
+code, design documents, art and audio assets, and the development records
+under `.workbuddy/` — are protected by copyright law.
+
+PERMITTED, provided the contents are not modified in any way:
+
+  1. Viewing and reading the contents of this repository through GitHub;
+  2. Cloning this repository locally for personal study, reading, and
+     technical evaluation.
+
+PROHIBITED without prior written permission from the copyright holder:
+
+  1. Copying, redistributing, publicly publishing, packaging, or mirroring
+     any part of this repository;
+  2. Any commercial use of the contents;
+  3. Modifying or adapting the contents, or publishing derivative works;
+  4. Using the contents to train, fine-tune, distill, or benchmark any
+     machine learning model, or otherwise incorporating them into a dataset;
+  5. Implying any authorization, endorsement, or partnership.
+
+AI-GENERATED CONTENT: The concept art under `docs/media/` was produced by
+generative AI and serves only as a visual placeholder. It is not a
+commitment regarding the final artwork.
+
+DISCLAIMER: This software is provided "as is", without warranty of any kind,
+express or implied, including but not limited to the warranties of
+merchantability, fitness for a particular purpose, and noninfringement.
+In no event shall the copyright holder be liable for any claim, damages, or
+other liability arising from the use of this software.
+
+For licensing inquiries, please contact the repository owner via GitHub.
