@@ -20,6 +20,7 @@
 | `scripts/tests/uv_probe.gd` | headless dump 任意 Mesh 的 UV，查贴图错位 |
 | `scripts/tests/cam_probe.gd` | **读 presentation.json** 算 4 路 feed 相机挂载点 + Transform3D，打印成 `.tscn` 可粘贴（与运行时同源） |
 | `scripts/tests/font_probe.gd` | **字体 / 排版探针**（SceneTree 型，可 headless）：TextServer 接口 / 内嵌字体身份 / **shaping 逐 glyph 判定**（`index==0` 豆腐、`font_rid` 外来 = 系统兜底）/ 数字等宽推进宽 |
+| ③ `enemy_test` | 生成 / 移动 / 扇区归属 / 攻击最近炮塔 |
 | ④ `turret_round2` | 4 副炮接入：独立开火 / 炮位推导 / 端到端击杀 |
 | ⑤ `turret_hp_test` | 伤害路由 / 被毁停火 / 全毁事件 / 死炮不可接管 / 开战回满 |
 | ⑦ `refit_test` | 阶段机走位 / 换装真生效 / 隐形跳过 / 主炮不可换 / 未知型号拒绝 |
@@ -43,8 +44,9 @@ G="C:/Users/lijia/Desktop/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64_co
 # 单跑
 /usr/bin/timeout 150 "$G" --headless --path . res://scenes/tests/feel_test.tscn 2>&1 | grep -E "断言:|结果：" | head -1
 
-# 整套
-for s in feel_test audio_test turret_round2 turret_hp_test wave_test refit_test unlock_test damage_test collapse_test; do
+# 整套（11 套 / 408 断言。**别漏 healthbar 与 enemy** —— 9/10 曾漏，见下坑 5）
+for s in feel_test audio_test healthbar_test turret_round2 turret_hp_test \
+         enemy_test wave_test refit_test unlock_test damage_test collapse_test; do
   printf "%-16s " "$s"
   /usr/bin/timeout 150 "$G" --headless --path . res://scenes/tests/$s.tscn 2>&1 | grep -E "断言:|结果：" | head -1
 done
@@ -65,3 +67,6 @@ done
    所以 `get_image()` 报错并返回 null。**三行纯引擎代码即可复现**（`sv.get_texture().get_image()`），与你的改动无关。
    判读主场景 headless 输出时先滤掉这一条，否则会淹没真正的新错误。
    同理退出时那句 `N ObjectDB instances were leaked at exit` 是 **`quit()` 早于清理**的常态（每个探针都有），不是泄漏 bug。
+5. **汇总断言数要按两种格式分别抓**：`grep -oE '[0-9]+/[0-9]+'` 只能匹配「断言: n/m」那 7 套，
+   `turret_round2 / turret_hp / enemy / wave` 打的是「结果：通过 n」，会被**静默漏掉 91 条**
+   （9/10 实测汇总出 317，真值是 **408 / 11 套**）。要点：**0 命中和漏抓长得一样**，报数前先核对套数。

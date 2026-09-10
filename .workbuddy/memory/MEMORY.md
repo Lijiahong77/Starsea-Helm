@@ -11,8 +11,9 @@
 
 ## 当前状态（2026-09-10）
 - **P0 总览**（详 `docs/BACKLOG.md`）：①-⑧ + ⑨a/⑨b/⑩ ✅；⑪ 完成 ②③④⑤，余 ⑥VFX / ①hitstop；⑥ 监控冻结（等美术模型）。
-- **测试**：P0 共 8 套 342 断言全绿（清单 + 运行命令详 `testing.md`）。
+- **测试**：P0 共 **11 套 408 断言全绿**（清单 + 运行命令详 `testing.md`）。
 - **⑪ 手感 🟡**（DEC-047）：②闪白 / ③震屏 / ④推镜（`FeelKit` 读 `presentation.json` 的 `feel`；`GameFeel` 挂 bridge 只写相机；强度按**「事件→强度表」**分发，自动命中不给）+ ⑤**血量 B+C**（接管目标血条 + 本体变暗，弃浮动数字）。
+- **仓库**：公开 `github.com/Lijiahong77/Starsea-Helm` · README 已建 · 头图 = 豆包生成概念图（`docs/media/hero.png`）。
 - **缺口 / 下一步**：⑪ ⑥VFX + ①hitstop · **头号重点 = 美术资产方案**（李主导；替换序 舱室→控制台→敌人→炮塔→VFX）。
 - ⚠️ **hitstop 禁用** `Engine.time_scale=0` → 改关 EnemySystem/TurretSystem 的 `_physics_process`（世界推进集中式）。
 - ⚠ 未决：fore 来袭先啃 dorsal（49.6m）而非主炮（51.2m）—— bible「最近」未限扇区（改 `Enemy._attack_tick`）。

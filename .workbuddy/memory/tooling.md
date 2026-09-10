@@ -38,6 +38,23 @@
     - 例外：新功能的**调试入口**（如生成按键）要直接 `print`，不走开关 —— 否则被关掉后
       "按了键没反应" 就分不清是「按键没进来」还是「功能失败」。
 
+## Git / GitHub（2026-09-10 项目首次上仓）
+- 远程 `https://github.com/Lijiahong77/Starsea-Helm`（**公开**），默认分支 `main`。
+- **提交身份配在 `--local`，没动全局**：`Li Jiahong <Lijiahong77@users.noreply.github.com>`。
+  换机器要重配（`git config --local user.name/email`），否则 commit 直接报错。
+- `.gitignore` 已按 **Godot 4.1+ 官方**重写：只忽略 `.godot/` + `*.translation`。
+  ⚠ **`*.import` 与 `*.uid` 不能忽略** —— 前者存导入设置（mipmap/滤波/压缩），后者存资源引用。
+  原文件是 Godot 3 写法（忽略了 `*.import`），会让 clone 后全部按默认参数重导。
+- `.gitattributes`：`* text=auto eol=lf`（Windows 上不用再改 `core.autocrlf`）+ 常见二进制标记。
+- 已排除 `.workbuddy/logs/`；`memory/` 与 `HANDOFF.md` **故意留在仓库里**（过程展示）。
+- **Git LFS 还没开**（git-lfs 3.7.1 已装）。GitHub Free 只有 1 GiB 存储 + 1 GiB/月带宽 →
+  美术资产落地前定规矩：源文件（.blend / .psd）不进 git，只提交运行时资产。
+- ⚠ **`gh repo create` 不支持 `--add-topic`**（本机 gh 2.97.0）→ topics 用 `gh repo edit --add-topic a,b,c` 单独设。
+- ⚠ **本机 bash 里 `git fetch` 写不进 `.git/refs/remotes/`**：报告 `[new branch]` 成功，目录却始终为空
+  （疑为工具沙箱对新目录写入的限制）→ 症状 `git status` 显示 `## main...origin/main [gone]`。
+  绕过：用 Write 工具直接把 40 位 SHA + 换行写进 `.git/refs/remotes/origin/main`。
+  **只影响状态显示，push / pull 本身正常。**
+
 ## 工具使用纪律（踩过坑，别再犯）
 - **同一文件不要并行发两次编辑**：编辑是「读-改-写」，并发时后写的整份内容会覆盖先写的，
   而两次都返回成功 —— 9/3 就这样静默丢了一处 `var mount` 声明，多花了 3 轮才定位。
