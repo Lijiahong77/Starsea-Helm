@@ -50,10 +50,11 @@
 - **Git LFS 还没开**（git-lfs 3.7.1 已装）。GitHub Free 只有 1 GiB 存储 + 1 GiB/月带宽 →
   美术资产落地前定规矩：源文件（.blend / .psd）不进 git，只提交运行时资产。
 - ⚠ **`gh repo create` 不支持 `--add-topic`**（本机 gh 2.97.0）→ topics 用 `gh repo edit --add-topic a,b,c` 单独设。
-- ⚠ **本机 bash 里 `git fetch` 写不进 `.git/refs/remotes/`**：报告 `[new branch]` 成功，目录却始终为空
-  （疑为工具沙箱对新目录写入的限制）→ 症状 `git status` 显示 `## main...origin/main [gone]`。
-  绕过：用 Write 工具直接把 40 位 SHA + 换行写进 `.git/refs/remotes/origin/main`。
-  **只影响状态显示，push / pull 本身正常。**
+- ⚠ **本机 bash 里 `git fetch` / `git push` 写不进 `.git/refs/remotes/origin/`**：报告 `[new branch]` 成功，
+  目录却始终为空（疑为工具沙箱**不允许创建该子目录**）→ 症状 `git status` 显示 `## main...origin/main [gone]`。
+  **`git update-ref refs/remotes/origin/main <sha>` 也无效 —— 它同样报成功但不落盘**（9/10 复现，白花一轮）。
+  **别再试标准命令，直接走绕过**：用 Write 工具把 40 位 SHA + 换行写进 `.git/refs/remotes/origin/main`。
+  **每次 push 后都要补一次**（不是一次性问题）。**只影响状态显示，push / pull 本身正常**，李自己机器上不会出现。
 
 ## 工具使用纪律（踩过坑，别再犯）
 - **同一文件不要并行发两次编辑**：编辑是「读-改-写」，并发时后写的整份内容会覆盖先写的，
