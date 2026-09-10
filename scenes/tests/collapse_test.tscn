@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://38wno8unq168"]
+
+[ext_resource type="Script" path="res://scripts/systems/turret_system.gd" id="1_turret_sys"]
+[ext_resource type="Script" path="res://scripts/systems/collapse_sequence.gd" id="2_collapse"]
+[ext_resource type="Script" path="res://scripts/tests/collapse_probe.gd" id="3_probe"]
+
+[node name="CollapseTest" type="Node"]
+script = ExtResource("3_probe")
+
+[node name="TurretSystem" type="Node3D" parent="."]
+script = ExtResource("1_turret_sys")
+
+[node name="CollapseSequence" type="Node" parent="."]
+script = ExtResource("2_collapse")

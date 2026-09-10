@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tests/wave_probe.gd" id="1_probe"]
+[ext_resource type="Script" path="res://scripts/systems/enemy_system.gd" id="2_enemy_sys"]
+[ext_resource type="Script" path="res://scripts/systems/wave_system.gd" id="3_wave_sys"]
+
+[node name="Bridge" type="Node3D"]
+script = ExtResource("1_probe")
+
+[node name="EnemySystem" type="Node3D" parent="."]
+script = ExtResource("2_enemy_sys")
+
+[node name="WaveSystem" type="Node" parent="."]
+script = ExtResource("3_wave_sys")

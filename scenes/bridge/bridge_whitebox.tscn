@@ -1,0 +1,336 @@
+[gd_scene format=3 uid="uid://bajpuwgpbkd30"]
+
+[ext_resource type="Script" uid="uid://dd541f1ifwkf5" path="res://scripts/bridge/bridge_whitebox.gd" id="1_bridge"]
+[ext_resource type="Script" uid="uid://px4vh7p3vu64" path="res://scripts/systems/enemy_system.gd" id="2_enemy_sys"]
+[ext_resource type="Script" uid="uid://cigpvslrr3aes" path="res://scripts/systems/turret_system.gd" id="3_turret_sys"]
+[ext_resource type="Script" uid="uid://c7xn4ngn71ah8" path="res://scripts/systems/wave_system.gd" id="4_wave_sys"]
+[ext_resource type="Script" uid="uid://cnl1rupqbqs6y" path="res://scripts/systems/refit_sequence.gd" id="5_refit_seq"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.015, 0.017, 0.032, 1)
+ambient_light_source = 1
+ambient_light_color = Color(0.13, 0.15, 0.21, 1)
+tonemap_mode = 2
+
+[sub_resource type="BoxMesh" id="box_shell"]
+size = Vector3(5.4, 0.2, 6.4)
+
+[sub_resource type="StandardMaterial3D" id="mat_floor"]
+albedo_color = Color(0.2, 0.22, 0.26, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_ceil"]
+albedo_color = Color(0.24, 0.26, 0.3, 1)
+
+[sub_resource type="BoxMesh" id="box_back"]
+size = Vector3(5.4, 6.4, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="mat_wall"]
+albedo_color = Color(0.3, 0.33, 0.38, 1)
+
+[sub_resource type="BoxMesh" id="box_side"]
+size = Vector3(0.2, 6.4, 6.4)
+
+[sub_resource type="BoxMesh" id="box_fill_below"]
+size = Vector3(4.4, 0.55, 0.2)
+
+[sub_resource type="BoxMesh" id="box_fill_above"]
+size = Vector3(4.4, 0.15, 0.2)
+
+[sub_resource type="BoxMesh" id="box_fill_left"]
+size = Vector3(0.3, 3, 0.2)
+
+[sub_resource type="BoxMesh" id="box_fill_right"]
+size = Vector3(0.3, 3, 0.2)
+
+[sub_resource type="BoxMesh" id="box_frame_h"]
+size = Vector3(4.6, 0.1, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="mat_frame"]
+albedo_color = Color(0.45, 0.48, 0.55, 1)
+
+[sub_resource type="BoxMesh" id="box_frame_v"]
+size = Vector3(0.1, 2.3, 0.3)
+
+[sub_resource type="BoxMesh" id="box_console"]
+size = Vector3(2.6, 0.6, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="mat_console"]
+albedo_color = Color(0.26, 0.28, 0.33, 1)
+
+[sub_resource type="BoxMesh" id="box_panel"]
+size = Vector3(1.15, 0.9, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="mat_panel"]
+albedo_color = Color(0.1, 0.11, 0.14, 1)
+
+[sub_resource type="QuadMesh" id="quad_screen"]
+size = Vector2(0.5, 0.375)
+
+[sub_resource type="ViewportTexture" id="vt_port"]
+viewport_path = NodePath("Feeds/SVPort")
+
+[sub_resource type="StandardMaterial3D" id="mat_screen_port"]
+albedo_color = Color(0.05, 0.06, 0.08, 1)
+albedo_texture = SubResource("vt_port")
+emission_enabled = true
+emission = Color(0.28, 0.28, 0.28, 1)
+emission_texture = SubResource("vt_port")
+
+[sub_resource type="ViewportTexture" id="vt_starboard"]
+viewport_path = NodePath("Feeds/SVStarboard")
+
+[sub_resource type="StandardMaterial3D" id="mat_screen_starboard"]
+albedo_color = Color(0, 0, 0, 1)
+albedo_texture = SubResource("vt_starboard")
+emission_enabled = true
+emission_texture = SubResource("vt_starboard")
+
+[sub_resource type="ViewportTexture" id="vt_dorsal"]
+viewport_path = NodePath("Feeds/SVDorsal")
+
+[sub_resource type="StandardMaterial3D" id="mat_screen_dorsal"]
+albedo_color = Color(0.05, 0.06, 0.08, 1)
+albedo_texture = SubResource("vt_dorsal")
+emission_enabled = true
+emission = Color(0.28, 0.28, 0.28, 1)
+emission_texture = SubResource("vt_dorsal")
+
+[sub_resource type="ViewportTexture" id="vt_ventral"]
+viewport_path = NodePath("Feeds/SVVentral")
+
+[sub_resource type="StandardMaterial3D" id="mat_screen_ventral"]
+albedo_color = Color(0.05, 0.06, 0.08, 1)
+albedo_texture = SubResource("vt_ventral")
+emission_enabled = true
+emission = Color(0.28, 0.28, 0.28, 1)
+emission_texture = SubResource("vt_ventral")
+
+[sub_resource type="BoxMesh" id="box_marker"]
+size = Vector3(6, 6, 6)
+
+[sub_resource type="StandardMaterial3D" id="mat_marker_port"]
+albedo_color = Color(0.25, 0.55, 1, 1)
+emission_enabled = true
+emission = Color(0.25, 0.55, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_marker_starboard"]
+albedo_color = Color(0.3, 0.9, 0.45, 1)
+emission_enabled = true
+emission = Color(0.3, 0.9, 0.45, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_marker_dorsal"]
+albedo_color = Color(1, 0.6, 0.2, 1)
+emission_enabled = true
+emission = Color(1, 0.6, 0.2, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_marker_ventral"]
+albedo_color = Color(0.75, 0.4, 1, 1)
+emission_enabled = true
+emission = Color(0.75, 0.4, 1, 1)
+
+[node name="Bridge" type="Node3D" unique_id=710949455]
+script = ExtResource("1_bridge")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1242290724]
+environment = SubResource("env")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=329561033]
+transform = Transform3D(0.90630776, -0.2601898, 0.33302775, 0, 0.7880108, 0.6156615, -0.42261827, -0.5579788, 0.7141803, 0, 0, 0)
+light_color = Color(0.8, 0.88, 1, 1)
+light_energy = 1.15
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=985290216]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, -1.3)
+mesh = SubResource("box_shell")
+surface_material_override/0 = SubResource("mat_floor")
+
+[node name="Ceiling" type="MeshInstance3D" parent="." unique_id=1771747357]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.1, -1.3)
+mesh = SubResource("box_shell")
+surface_material_override/0 = SubResource("mat_ceil")
+
+[node name="WallBack" type="MeshInstance3D" parent="." unique_id=1505252543]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -4.4)
+mesh = SubResource("box_back")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallLeft" type="MeshInstance3D" parent="." unique_id=806003752]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 1.5, -1.3)
+mesh = SubResource("box_side")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallRight" type="MeshInstance3D" parent="." unique_id=601588745]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 1.5, -1.3)
+mesh = SubResource("box_side")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallFrontFillBelow" type="MeshInstance3D" parent="." unique_id=1742508270]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.275, 1.8)
+mesh = SubResource("box_fill_below")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallFrontFillAbove" type="MeshInstance3D" parent="." unique_id=1770854901]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.925, 1.8)
+mesh = SubResource("box_fill_above")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallFrontFillLeft" type="MeshInstance3D" parent="." unique_id=584293316]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.35, 1.5, 1.8)
+mesh = SubResource("box_fill_left")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="WallFrontFillRight" type="MeshInstance3D" parent="." unique_id=360258451]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.35, 1.5, 1.8)
+mesh = SubResource("box_fill_right")
+surface_material_override/0 = SubResource("mat_wall")
+
+[node name="FrameBottom" type="MeshInstance3D" parent="." unique_id=673079831]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 1.8)
+mesh = SubResource("box_frame_h")
+surface_material_override/0 = SubResource("mat_frame")
+
+[node name="FrameTop" type="MeshInstance3D" parent="." unique_id=523009924]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.85, 1.8)
+mesh = SubResource("box_frame_h")
+surface_material_override/0 = SubResource("mat_frame")
+
+[node name="FrameLeft" type="MeshInstance3D" parent="." unique_id=63667162]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.3, 1.7, 1.8)
+mesh = SubResource("box_frame_v")
+surface_material_override/0 = SubResource("mat_frame")
+
+[node name="FrameRight" type="MeshInstance3D" parent="." unique_id=421606442]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 1.7, 1.8)
+mesh = SubResource("box_frame_v")
+surface_material_override/0 = SubResource("mat_frame")
+
+[node name="Console" type="MeshInstance3D" parent="." unique_id=2010031037]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 1.15)
+mesh = SubResource("box_console")
+surface_material_override/0 = SubResource("mat_console")
+
+[node name="MonitorPanel" type="Node3D" parent="." unique_id=87040685]
+transform = Transform3D(-1, -2.4096984e-08, 8.403617e-08, 0, 0.9612617, 0.27563736, -8.742278e-08, 0.27563736, -0.9612617, 0, 0.9, 0.912)
+
+[node name="PanelBase" type="MeshInstance3D" parent="MonitorPanel" unique_id=1576425549]
+mesh = SubResource("box_panel")
+surface_material_override/0 = SubResource("mat_panel")
+
+[node name="ScreenPort" type="MeshInstance3D" parent="MonitorPanel" unique_id=163059748]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.275, 0.2125, 0.02)
+mesh = SubResource("quad_screen")
+surface_material_override/0 = SubResource("mat_screen_port")
+
+[node name="ScreenStarboard" type="MeshInstance3D" parent="MonitorPanel" unique_id=2017242802]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, 0.2125, 0.02)
+mesh = SubResource("quad_screen")
+surface_material_override/0 = SubResource("mat_screen_starboard")
+
+[node name="ScreenDorsal" type="MeshInstance3D" parent="MonitorPanel" unique_id=1406375060]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.275, -0.2125, 0.02)
+mesh = SubResource("quad_screen")
+surface_material_override/0 = SubResource("mat_screen_dorsal")
+
+[node name="ScreenVentral" type="MeshInstance3D" parent="MonitorPanel" unique_id=2126017174]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, -0.2125, 0.02)
+mesh = SubResource("quad_screen")
+surface_material_override/0 = SubResource("mat_screen_ventral")
+
+[node name="Feeds" type="Node3D" parent="." unique_id=84673936]
+
+[node name="SVPort" type="SubViewport" parent="Feeds" unique_id=1976275168]
+size = Vector2i(320, 240)
+render_target_update_mode = 3
+
+[node name="FeedCam" type="Camera3D" parent="Feeds/SVPort" unique_id=423845792]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -11.5, 0, 0)
+current = true
+
+[node name="SVStarboard" type="SubViewport" parent="Feeds" unique_id=46473905]
+size = Vector2i(320, 240)
+render_target_update_mode = 3
+
+[node name="FeedCam" type="Camera3D" parent="Feeds/SVStarboard" unique_id=641784392]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 11.5, 0, 0)
+current = true
+
+[node name="SVDorsal" type="SubViewport" parent="Feeds" unique_id=113297536]
+size = Vector2i(320, 240)
+render_target_update_mode = 3
+
+[node name="FeedCam" type="Camera3D" parent="Feeds/SVDorsal" unique_id=67550154]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 8.5, 0)
+current = true
+
+[node name="SVVentral" type="SubViewport" parent="Feeds" unique_id=1293610783]
+size = Vector2i(320, 240)
+render_target_update_mode = 3
+
+[node name="FeedCam" type="Camera3D" parent="Feeds/SVVentral" unique_id=262552830]
+transform = Transform3D(-1, 0, 0, 0, 0, 1, 0, 1, 0, 0, -8.5, 0)
+current = true
+
+[node name="Markers" type="Node3D" parent="." unique_id=1496405584]
+
+[node name="MarkerPort" type="MeshInstance3D" parent="Markers" unique_id=585067428]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 0)
+mesh = SubResource("box_marker")
+surface_material_override/0 = SubResource("mat_marker_port")
+
+[node name="MarkerStarboard" type="MeshInstance3D" parent="Markers" unique_id=1827823160]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, 0)
+mesh = SubResource("box_marker")
+surface_material_override/0 = SubResource("mat_marker_starboard")
+
+[node name="MarkerDorsal" type="MeshInstance3D" parent="Markers" unique_id=1426082566]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 60, 0)
+mesh = SubResource("box_marker")
+surface_material_override/0 = SubResource("mat_marker_dorsal")
+
+[node name="MarkerVentral" type="MeshInstance3D" parent="Markers" unique_id=94498245]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -60, 0)
+mesh = SubResource("box_marker")
+surface_material_override/0 = SubResource("mat_marker_ventral")
+
+[node name="Player" type="Node3D" parent="." unique_id=140554100]
+transform = Transform3D(-1, 0, 2.5351817e-06, 0, 1, 0, -2.5351817e-06, 0, -1, 0, 0, -0.66924405)
+
+[node name="Camera3D" type="Camera3D" parent="Player" unique_id=355012580]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+current = true
+fov = 70.0
+near = 0.1
+far = 1500.0
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1315058316]
+
+[node name="BG" type="ColorRect" parent="HUD" unique_id=87206923]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 446.0
+offset_bottom = 400.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="Label" type="Label" parent="HUD" unique_id=1777641519]
+offset_left = 30.0
+offset_top = 26.0
+offset_right = 30.0
+offset_bottom = 26.0
+theme_override_font_sizes/font_size = 15
+
+[node name="FeedTimer" type="Timer" parent="." unique_id=437023257]
+wait_time = 0.1
+autostart = true
+
+[node name="EnemySystem" type="Node3D" parent="." unique_id=1608759039]
+script = ExtResource("2_enemy_sys")
+
+[node name="TurretSystem" type="Node3D" parent="." unique_id=1716032039]
+script = ExtResource("3_turret_sys")
+
+[node name="WaveSystem" type="Node" parent="." unique_id=1806234517]
+script = ExtResource("4_wave_sys")
+
+[node name="RefitSequence" type="Node" parent="." unique_id=1906234518]
+script = ExtResource("5_refit_seq")

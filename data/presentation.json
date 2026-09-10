@@ -1,0 +1,180 @@
+{
+  "render": {
+    "msaa": 4,
+    "tonemap": "filmic",
+    "glow_hdr_threshold": 0.9,
+    "glow_intensity": 0.6,
+    "sdfgi_enabled": false,
+    "_doc_light_2026_09_08": "9/8 用户实测「太黑看不清敌舰」：敌舰是纯 albedo 无自发光，全靠环境光照亮，原 ambient(0.13) × energy(1.0) 下敌舰亮度不足 0.12。本次 ambient 提到 0.30 档、energy 提到 1.8（总亮度约 ×4），保持冷蓝色调不丢宇宙氛围。若实机仍暗，下一步是给敌舰加 emission 自发光（改 enemy.gd，需把视觉数值外置）。",
+    "bg_color": [0.03, 0.035, 0.06],
+    "ambient_color": [0.3, 0.33, 0.4],
+    "ambient_energy": 1.8
+  },
+  "camera": {
+    "fov": 70,
+    "near": 0.1,
+    "far": 1500,
+    "pitch_limit": 80,
+    "idle_sway_amp": 0.004,
+    "idle_sway_period": 5.0
+  },
+  "input": {
+    "mouse_sensitivity": 0.0022
+  },
+  "feel": {
+    "_doc": "⑪ Game Feel 旋钮（知识库第 09 课五层 + VFX；DEC-043 把 VFX 并入 ⑪，DEC-047 定接线边界）。\n     一次只做一层：① hitstop ② 命中闪白 ③ 震屏 ④ 推镜 ⑤ 伤害数字 ⑥ VFX。\n     本段只给旋钮不给终值 —— 实机手感别扭就改这里，不用碰代码。\n     master_scale = 总闸：0 = 全部反馈静默（排查用），1.0 = 设计基线。",
+    "master_scale": 1.0,
+    "shake_time": 0.22,
+    "shake_max_offset": 0.05,
+    "_doc_shake_freq": "抖动频率（Hz）。**必须远低于帧率的一半**：60fps 下超过 ~20Hz 会混叠成\n     慢悠悠的晃动而不是抖（正弦被采样成假频率）。三轴各乘 1.00 / 0.83 / 1.31，\n     所以 14Hz 的实际最高轴约 18Hz，仍在安全区。",
+    "shake_freq": 14.0,
+    "zoom_in_time": 0.05,
+    "zoom_out_time": 0.18,
+    "flash_time": 0.08,
+    "flash_color": [2.4, 2.0, 1.8],
+    "_doc_events": "事件 → 反馈强度表。shake 单位 m（相机局部偏移），zoom 单位度（视场角收窄量）。\n     缺项 = 该事件不触发这种反馈。事件键必须与 GameFeel 里订阅的名字逐字一致 ——\n     写错不会报错、只会静默没反馈（⑩ 踩过同一个坑，见 memory/audio.md #7），\n     所以 FeelKit 遇缺键会主动 warn。\n     原则（DEC-047）：**冻结 / 推镜 / 重震只给「玩家的动作 + 大事件」**，不给每次自动命中 ——\n     本作自动火力每帧都在打，全命中给反馈 = 画面持续抽搐，踩碎 DEC-021 的低 APM 设计。",
+    "events": {
+      "player_fire": { "shake": 0.012, "zoom": 3.0 },
+      "enemy_killed": { "shake": 0.005 },
+      "turret_damaged": { "shake": 0.003 },
+      "turret_destroyed": { "shake": 0.028 },
+      "sector_breached": { "shake": 0.028 }
+    }
+  },
+  "healthbar": {
+    "_doc": "⑪ ⑤ 敌人血量反馈（2026-09-10，李拍板 B+C 方案）。\n     设计出发点：flak/lance 一发秒战机、lance 一发秒轰炸机 —— 伤害数字对它们永远是满血数，没意义；\n     真正有决策价值的是「还差几发」，所以做血条而不是飘字（DEC-021 低 APM 也反对满屏飘字）。\n     两层分工：\n       B = 接管时屏幕上方中央的「当前目标」血条 —— **只在玩家主动接管时出现**，不接管就零噪音；\n       C = 敌人本体随血量变暗 —— 空间化反馈，符合 DEC-026「信息不对称由物理保证」，不叠 UI。\n     两层的旋钮都在本段，改手感 / 改 HUD 一律改这里，不碰代码。",
+    "enabled": true,
+    "enemy_tint": {
+      "_doc": "C 层：敌人本体颜色 = 满血本色 --按 (1-hp_ratio)^curve 插值--> dim_color。\n       dim_color 必须仍看得见（暗舱里变纯黑 = 敌人凭空消失），但要比本色明显暗一档。\n       curve：1.0 线性；>1 = 前期看不出、后期陡降（「快散了」的信号更集中在末段）。",
+      "dim_color": [0.22, 0.09, 0.07],
+      "curve": 1.0
+    },
+    "target_bar": {
+      "_doc": "B 层：当前目标血条。位置从屏幕顶往下 offset_top，水平居中，宽 width 高 height。\n       low_ratio 以下填充换成 low_color —— 让「快打死了」一眼可辨，不必读数字。\n       fade_time = 淡入淡出时长（0 = 硬切）。",
+      "title": "当前目标",
+      "offset_top": 84.0,
+      "label_height": 22.0,
+      "gap": 6.0,
+      "width": 440.0,
+      "height": 18.0,
+      "bg_color": [0.02, 0.02, 0.03, 0.72],
+      "fill_color": [0.86, 0.26, 0.20],
+      "low_color": [0.98, 0.72, 0.16],
+      "low_ratio": 0.3,
+      "font_size": 14,
+      "fade_time": 0.22
+    }
+  },
+  "bridge": {
+    "depth": 6.0,
+    "width": 5.0,
+    "height": 3.0,
+    "eye_height": 1.6,
+    "viewport_width": 4.4,
+    "viewport_height": 1.3,
+    "viewport_sill": 0.95,
+    "console_distance": 1.7,
+    "console_screen_distance": 1.15,
+    "console_screen_tilt": 30.0,
+    "console_width": 2.6,
+    "console_body_height": 0.6,
+    "console_body_depth": 0.5
+  },
+  "monitor": {
+    "feed_count": 4,
+    "feed_width": 320,
+    "feed_height": 240,
+    "feed_fps": 10,
+    "panel_width": 1.15,
+    "panel_height": 0.9,
+    "screen_width": 0.5,
+    "screen_aspect": 0,
+    "screen_gap": 0.05,
+    "panel_tilt": 0.0,
+    "screen_distance": 1.15,
+    "feed_cam_hull_offset": 0.5,
+    "marker_distance": 60.0,
+    "marker_size": 6.0,
+    "screen_material": {
+      "albedo_color": [1, 1, 1],
+      "emission_enabled": false,
+      "emission": [0, 0, 0]
+    },
+    "feed_cams": [
+      {
+        "feed": "SVPort",
+        "marker": "MarkerPort",
+        "axis": [-1, 0, 0],
+        "mount": [-2.8, 1.5, 0],
+        "up": [0, 1, 0]
+      },
+      {
+        "feed": "SVStarboard",
+        "marker": "MarkerStarboard",
+        "axis": [1, 0, 0],
+        "mount": [2.8, 1.5, 0],
+        "up": [0, 1, 0]
+      },
+      {
+        "feed": "SVDorsal",
+        "marker": "MarkerDorsal",
+        "axis": [0, 1, 0],
+        "mount": [0, 3.3, 0],
+        "up": [0, 0, -1]
+      },
+      {
+        "feed": "SVVentral",
+        "marker": "MarkerVentral",
+        "axis": [0, -1, 0],
+        "mount": [0, -0.3, 0],
+        "up": [0, 0, 1]
+      }
+    ]
+  },
+  "ship": {
+    "length": 64,
+    "width": 22,
+    "height": 16,
+    "turret_spacing": 22
+  },
+  "turret": {
+    "range": 120,
+    "main_gun_projectile_speed": 200,
+    "sub_gun_projectile_speed": 300
+  },
+  "_doc_audio_moved": "音频旋钮已于 2026-09-10（⑩）移出本文件 → data/audio.json。\n     理由：3D 音效的 max_distance / unit_size 原先在这里，而音效路径 / 音量 / 限流阈值在 audio.json，\n     同一类参数存两处必然改一处漏一处。现在呈现类旋钮归本文件、听觉类旋钮归 audio.json，各一个真源。\n     本文件下面的「尺度自检」只覆盖视觉旋钮，不含音频。",
+
+  "collapse": {
+    "_doc": "⑨b 陷落演出的全部旋钮（DEC-043 三级分层 / DEC-045 实现边界）。\\n     L1 = 单炮被毁（turret_destroyed）→ 该路 feed 打【计数】标记；\\n     L2 = 该面失守（sector_breached）→ 该路 feed 打【红叉 + 整屏红】；\\n     L3 = 全部炮塔被毁（all_turrets_destroyed）→ 夺操控 + 拉远环绕镜头 + 宣告 → RESULT。\\n     爆炸粒子归 ⑪VFX、警报音归 ⑩音频：三者订阅同一批事件，⑨b 只管编排与镜头。",
+    "_doc_marker": "标记 = 【整屏染色 tint】+ 【文字】两层。染色是**主信号**（不依赖字体、白盒阶段也一眼可见），\\n     文字只是补充 —— 项目未配字体（靠系统 fallback），不能把关键反馈押在字能不能渲染出来。\\n     两层都作为屏幕 mesh 的子节点、沿法线(+Z)外移一点，避免与画面 z-fighting。",
+    "tint_offset_z": 0.006,
+    "text_offset_z": 0.014,
+    "text_pixel_size": 0.0016,
+    "flash_pulses": 3.0,
+    "l1": {
+      "_doc": "单炮被毁。text 的 %d/%d = 该扇区【存活门数 / 已装门数】—— DEC-042 后一路两门，\\n            死一门不等于该面失守，所以必须用计数而不是红叉。",
+      "text": "%d/%d",
+      "color": [1.0, 0.72, 0.20],
+      "tint_alpha": 0.30,
+      "flash_duration": 0.5
+    },
+    "l2": {
+      "_doc": "该面失守（该路两门全灭）。整屏红 + 红叉。text 用 ✕ 而非「失守」二字：\\n            屏幕只有 0.5m 宽，两汉字会糊；且 ✕ 是跨语言通用的「不可用」。",
+      "text": "✕",
+      "color": [1.0, 0.18, 0.14],
+      "tint_alpha": 0.55,
+      "flash_duration": 0.35
+    },
+    "l3": {
+      "_doc": "终局：夺操控 → 相机从当前位拉远到 pullback 处、绕 orbit_deg、回望船心 → 宣告 → RESULT。\\n        pullback 必须**大于敌人悬停距离**（enemies.json 的 attack_range，默认 50），\\n        否则相机穿过敌群、画面里看不到包围感。",
+      "pullback": 95.0,
+      "orbit_deg": 55.0,
+      "rise": 16.0,
+      "move_time": 2.4,
+      "hold_time": 2.2,
+      "announce": "全部炮塔哑火 —— 本舰失去反抗能力",
+      "announce_color": [1.0, 0.30, 0.24],
+      "hint": "本局结束"
+    }
+  }
+}

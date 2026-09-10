@@ -1,0 +1,42 @@
+{
+  "_doc": "敌人参数的**单一真源**（目录约定见 docs/MODULES.md §五）。所有敌人数值外置，禁止 hardcode 到脚本。",
+  "_doc_ship_center": "敌人直线飞向的目标点。白盒阶段 = 舰桥房间中心（.tscn 实测：z 中心 -1.3、y 中心 1.5）；等整船网格建好后改成真正的舰体中心。",
+  "_doc_heavy": "enemy_heavy 在 BACKLOG 里是 P1，本轮（③六扇区+敌人）只实现 interceptor + bomber，heavy 参数预留不启用。",
+  "_doc_pressure": "pressure_reference_count = 压力归一化分母：某扇区敌人数达到该值时 pressure = 1.0。bible 02_entities.md 定义 pressure = 威胁值 / 剩余防御力，但炮塔实体属④⑤步，③ 阶段先按威胁数归一化，⑤ 接真实防御力时替换此公式。",
+  "_doc_sector_distribution": "敌人六面来袭权重（0 = 该面完全不来敌）。aft 取 0 依据 DEC-036（推进器高温区，敌人不主攻）。",
+  "enemy": {
+    "spawn_radius": 190,
+    "attack_range": 52,
+    "ship_center": [0, 1.5, -1.3],
+    "speed_interceptor": 17,
+    "speed_bomber": 11,
+    "speed_heavy": 8,
+    "size_interceptor": 6,
+    "size_bomber": 14,
+    "size_heavy": 20,
+    "hp_interceptor": 20,
+    "hp_bomber": 52,
+    "hp_heavy": 105,
+    "_doc_dps": "敌人**对炮塔**的伤害速率（HP/秒），⑤ 炮塔耐久的唯一来源。取值依据：副炮 80 HP / 主炮 200 HP（turrets.json），单架打空一门副炮 —— 拦截机 80/3≈27s、轰炸机 80/7≈11s，留出「扫视监控发现 → 接管」的反应窗口，符合 DEC-021「低 APM、允许发呆」。这两个数是波次压力曲线的主旋钮，调手感先动它。",
+    "dps_interceptor": 3,
+    "dps_bomber": 7,
+    "pressure_reference_count": 6,
+    "_doc_spawn_cone_deg": "生成方向相对扇区轴线的最大偏角（锥形采样半角）。上限 45（立方体面的内切半角，超过就会跨到邻面，导致「生成时说 fore、跑起来判成 ventral」）。调小 = 敌人更集中在正面来袭；调大 = 来袭角度更散，但散到一定程度会飞到舷窗视野外被艏部墙挡住。",
+    "spawn_cone_deg": 25,
+    "sector_distribution": {
+      "fore": 1.0,
+      "aft": 0.0,
+      "port": 1.0,
+      "starboard": 1.0,
+      "dorsal": 1.0,
+      "ventral": 1.0
+    },
+    "_doc_display_name": "⑨a 战损报告用（DEC-043）：把敌人 type_id 翻成中文，面板才显示得出「伤害来源」。\n      type_id 是代码内部标识（interceptor/bomber/heavy），直接甩给玩家看不懂；\n      但中文也不该写死在脚本里 —— 文案外置，改名字不用碰代码（宪法第 3 条）。\n      unknown = 兜底：测试或未来无来源伤害会走到这里。",
+    "display_name": {
+      "interceptor": "战机",
+      "bomber": "轰炸机",
+      "heavy": "重甲",
+      "unknown": "不明"
+    }
+  }
+}

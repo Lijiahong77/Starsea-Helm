@@ -1,0 +1,113 @@
+{
+  "_doc": "炮塔参数的**单一真源**（目录约定见 docs/MODULES.md §五）。所有炮塔数值外置，禁止 hardcode 到脚本。",
+  "_doc_canon": "权威区间见 docs/bible/03_rules.md §一（炮塔）。所选数值落在白盒中间值，下一步接入真实美术时再按手感调。",
+  "_doc_dps_calc": "projectile_damage = auto_dps × auto_fire_interval（每发子弹造成的伤害等于该秒数内的 DPS 贡献），自动模式按时打就等于 DPS 守恒。手动模式由玩家扳机触发，不走 DPS，自动 / 手动的「DPS 差距」由玩家射速决定 —— 这是 DEC-030 + bible §一第 22 行的核心权衡。",
+  "_doc_lifetime": "projectile_max_lifetime 决定最大射程。200 m/s × 4 s = 800 m 远大于实际 range=130，留余量防「打飞远处看不见的目标」。",
+  "_doc_round_2": "sub_gun_* 段已于 2026-09-06 Round 2 接入：4 门副炮（port/starboard/dorsal/ventral）\n           由 sub_gun_template 提供数值、sub_gun_instances 提供炮位，已跑通自动开火 + 击杀。\n           DEC-040：同扇区装多门炮时**各自独立**开火（各自 cooldown / 各自锁敌），不合并 DPS。",
+  "_doc_fire_sfx": "fire_sfx = 开火音效 id，指向 data/audio.json 的 sfx 段（2026-09-10，⑩ 音频）。\n           为什么要一门一型：三种副炮是**横向差异**（速射 / 标准 / 重甲），\n           射速差 3 倍、单发差 4.5 倍，用同一个音会让玩家**听不出自己换的是哪门**。\n           音效路径与音量全在 audio.json，这里只存 id —— 换音不改本文件。",
+  "main_gun": {
+    "sector": "fore",
+    "mount": [0, 1.6, -0.6],
+    "hp": 200,
+    "auto_dps": 12,
+    "auto_fire_interval": 0.25,
+    "projectile_speed": 200,
+    "projectile_damage": 3,
+    "range": 130,
+    "projectile_max_lifetime": 4.0,
+    "visual_size": [0.5, 0.5, 1.2],
+    "fire_sfx": "sfx_main_gun_fire"
+  },
+  "sub_gun_template": {
+    "hp_per_gun": 80,
+    "auto_dps_per_gun": 8,
+    "auto_fire_interval": 3.0,
+    "projectile_speed": 300,
+    "projectile_damage": 24,
+    "range": 120,
+    "projectile_max_lifetime": 3.0,
+    "visual_size": [0.4, 0.4, 0.8],
+    "fire_sfx": "sfx_sub_gun_fire"
+  },
+  "variants": {
+    "_doc": "⑦ 改装阶段的**可选炮塔类型库**（2026-09-08）。每种是一份完整的 Turret 配置，\n           swap_turret 拿它整体替换某门副炮的数值 + 外观。\n           设计原则（DEC-021 装配要有意义）：三种是**横向差异**不是纵向升级 ——\n           总 DPS 守恒（auto_dps × auto_fire_interval == projectile_damage），\n           差异在「单发伤害 / 射速 / 射程 / 耐久」四轴的取舍，没有严格最优解。\n           slot 字段标明能装在哪类槽位（当前只有 sub 副炮位，主炮固定不可换 —— DEC-030）。\n           unlock_at_crisis = 撑过 N 次危机后解锁（0 = 开局即有），DEC-042。\n           节奏**咬合威胁曲线**而非 bible 的 3-5 / 8-12 参考区间：bomber 第 4 波登场，\n           lance 必须在那之前到手（危机 3），否则变成「先挨打、再给枪」；\n           gatling 放危机 1 是为了让**第一次进改装台就有真选择** —— 只有一种可选时，\n           改装台就退化成一段过场。数值全外置，改节奏不用碰代码。",
+    "flak": {
+      "display_name": "标准点防炮",
+      "desc": "3 秒一发，24 伤害。够用，但不惊艳。",
+      "slot": "sub",
+      "unlock_at_crisis": 0,
+      "hp": 80,
+      "auto_dps": 8,
+      "auto_fire_interval": 3.0,
+      "projectile_speed": 300,
+      "projectile_damage": 24,
+      "range": 120,
+      "projectile_max_lifetime": 3.0,
+      "visual_size": [0.4, 0.4, 0.8],
+      "visual_color": [0.40, 0.45, 0.50],
+      "fire_sfx": "sfx_sub_gun_fire"
+    },
+    "gatling": {
+      "display_name": "速射近防炮",
+      "desc": "1.5 秒一发，12 伤害。打集群拦截机不浪费，够不着远处的重甲。",
+      "slot": "sub",
+      "unlock_at_crisis": 1,
+      "hp": 60,
+      "auto_dps": 8,
+      "auto_fire_interval": 1.5,
+      "projectile_speed": 260,
+      "projectile_damage": 12,
+      "range": 100,
+      "projectile_max_lifetime": 3.0,
+      "visual_size": [0.30, 0.30, 0.55],
+      "visual_color": [0.58, 0.44, 0.26],
+      "fire_sfx": "sfx_sub_gun_fire_fast"
+    },
+    "lance": {
+      "display_name": "重型穿甲炮",
+      "desc": "4.5 秒一发，54 伤害。一发带走轰炸机，但集群来了会打空。",
+      "slot": "sub",
+      "unlock_at_crisis": 3,
+      "hp": 110,
+      "auto_dps": 12,
+      "auto_fire_interval": 4.5,
+      "projectile_speed": 340,
+      "projectile_damage": 54,
+      "range": 150,
+      "projectile_max_lifetime": 3.0,
+      "visual_size": [0.52, 0.52, 1.15],
+      "visual_color": [0.46, 0.36, 0.52],
+      "fire_sfx": "sfx_sub_gun_fire_heavy"
+    }
+  },
+  "sub_gun_instances": {
+    "_doc": "Round 2 副炮 mount（2026-09-06 预修复）：不再写死坐标，改用 hull_radius + axis 推导，\n           TurretSystem 在 _build_one_sub 里算 mount = axis × hull_radius。\n           数值 11.5 / 8.5 来自 ship.width=22 / ship.height=16（presentation.json 默认）÷ 2 + hull_offset=0.5。\n           四门副炮分守四向，符合 DEC-026 + DEC-038「副炮视角 = 在舰体外表面」。\n           这 4 个是**开局槽位**（unlock_at_crisis 恒为 0，开局自动装 flak）；\n           后解锁的槽位见 extra_slots。",
+    "port":      {"hull_radius": 11.5, "axis": [-1, 0, 0]},
+    "starboard": {"hull_radius": 11.5, "axis": [1, 0, 0]},
+    "dorsal":    {"hull_radius": 8.5,  "axis": [0, 1, 0]},
+    "ventral":   {"hull_radius": 8.5,  "axis": [0, -1, 0]}
+  },
+  "extra_slots": {
+    "_doc": "⑦ 扩展槽位（DEC-042，2026-09-09）：撑过 N 次危机后多开一个炮位，节奏见 unlock_at_crisis。\n           形态 = **每路 feed 两个炮位**（李 2026-09-09 澄清）：原本 4 路各 1 门炮，\n           现在每路可以装第 2 门，总槽位 4 → 8。**不是**新增第五、第六个「面」——\n           监控固定 4 路（bible monitor.feed_count=4），第二炮位共享它所在那一路画面，\n           所以扩展不能凭空多出一个方向，只能在已有的四路里各塞一门。\n           mount = axis × hull_radius + mount_offset：沿 -Z 向船尾错开 3.5 m（船长 64，绰绰有余），\n           同路两门不重叠，且**两门都落在同一路 feed 的视野里**。\n           sector 沿用所在那一路（port2 仍属 port 扇区），于是\n           「同路两门都死了才算这面失守」天然成立，不需要额外判定。\n           解锁**分批**：先左右舷（危机 2 / 3，船体最宽摆得开），后顶底（危机 5 / 6）。\n           槽位解锁时是**空的** —— 玩家得自己挑一门装上去，这个动作本身就是装配乐趣；\n           自动送一门 flak 等于替玩家做决定，装配乐趣直接归零。",
+    "port2": {
+      "sector": "port",
+      "hull_radius": 11.5, "axis": [-1, 0, 0], "mount_offset": [0, 0, -3.5],
+      "unlock_at_crisis": 2
+    },
+    "starboard2": {
+      "sector": "starboard",
+      "hull_radius": 11.5, "axis": [1, 0, 0], "mount_offset": [0, 0, -3.5],
+      "unlock_at_crisis": 3
+    },
+    "dorsal2": {
+      "sector": "dorsal",
+      "hull_radius": 8.5, "axis": [0, 1, 0], "mount_offset": [0, 0, -3.5],
+      "unlock_at_crisis": 5
+    },
+    "ventral2": {
+      "sector": "ventral",
+      "hull_radius": 8.5, "axis": [0, -1, 0], "mount_offset": [0, 0, -3.5],
+      "unlock_at_crisis": 6
+    }
+  }
+}

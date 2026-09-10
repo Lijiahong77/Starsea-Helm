@@ -1,0 +1,105 @@
+{
+  "_doc": "音频参数的**单一真源**（目录约定见 docs/MODULES.md §五）。全部旋钮外置，AudioManager 不 hardcode 任何音效 id / 音量 / 限流阈值。",
+  "_doc_source": "设计依据 docs/bible/04_presentation.md §六（三条总线 + 听觉 HUD）与 docs/开发指导/知识库-阶段三-09-13.md §第 10 课（防爆策略 / 交叉淡化 / 不 preload）。",
+  "_doc_placeholder": "assets/audio/ 目前为空。每个条目都有 tone 段：**路径不存在时用 tone 参数合成一段占位音**，保证白盒阶段 F5 能听见。\n     正式素材（Kenney CC0 等）到位后，只要把文件放到 path 指向的位置，**配置一个字都不用改**，合成回退自动让位。\n     这是「数值外置」的延伸：连占位音也是配置，不是硬编码在脚本里的常量。",
+
+  "buses": {
+    "_doc": "总线名外置，代码里不出现字符串字面量。Master 由引擎自带（index 0），其余三条运行时挂到 Master 下。",
+    "master": "Master",
+    "music": "Music",
+    "sfx": "SFX",
+    "ui": "UI"
+  },
+
+  "mix": {
+    "_doc": "各总线基准电平。Music 依知识库第 10 课取 -6 dB。",
+    "music_db": -6.0,
+    "sfx_db": 0.0,
+    "ui_db": -2.0
+  },
+
+  "pool": {
+    "_doc": "高频音防爆三件套之二（之一见各条目的 limit_ms / max_per_window）。\n     全局 2D 播放器池，超容量时丢**最旧**的那个（drop_oldest），不新开播放器 —— 开播放器就是爆音的来源。",
+    "size": 8,
+    "drop_oldest": true
+  },
+
+  "spatial": {
+    "_doc": "仅**前扇区**用 AudioStreamPlayer3D（bible 04 §六：舷窗看得见的那一面才该有方向感）。\n     其余五扇区在封闭舰桥内，用 2D 播放器 —— 船体传导声不该有清晰方向。\n     fore_source_offset = 前扇区声源的挂载点（相对船心），默认放到舷窗外一段距离。",
+    "max_distance": 320.0,
+    "unit_size": 12.0,
+    "fore_source_offset": [0.0, 1.6, -30.0]
+  },
+
+  "crossfade": {
+    "_doc": "BGM 交叉淡化时序（知识库第 10 课）：旧轨淡出 → 延迟 → 新轨淡入。",
+    "out_s": 0.8,
+    "delay_s": 0.3,
+    "in_s": 0.5
+  },
+
+  "dedup_same_frame": true,
+
+  "synth": {
+    "_doc": "占位音的合成规格。mix_rate 是技术常量不是设计旋钮，放这里只是为了让「找不到素材时发什么声」整条链路都可在 JSON 里查到。",
+    "mix_rate": 22050
+  },
+
+  "sector_hud": {
+    "_doc": "⭐ **听觉 HUD**（bible 04 §六）：不同扇区受击用不同音高，玩家要的是「听得懂是哪一面」。\n     spatial=true 的扇区改走 3D 播放器；其余走 2D。pitch 全部是旋钮，实机听着别扭就改这里。",
+    "fore":      { "pitch": 1.00, "spatial": true },
+    "aft":       { "pitch": 0.75, "spatial": false },
+    "port":      { "pitch": 1.15, "spatial": false },
+    "starboard": { "pitch": 0.90, "spatial": false },
+    "dorsal":    { "pitch": 1.30, "spatial": false },
+    "ventral":   { "pitch": 0.65, "spatial": false }
+  },
+
+  "events": {
+    "_doc": "**低频事件** → 音效的自动接线（MODULES.md §三 扇出蓝图里 AudioManager 已被列为这些事件的订阅方）。\n     高频音（开火 / 命中 / 受创）**不走这里** —— 每帧发信号会把总线刷爆，它们由业务代码直接调 play_sfx()。",
+    "turret_destroyed": "sfx_turret_destroyed",
+    "sector_breached": "sfx_sector_breached",
+    "all_turrets_destroyed": "sfx_all_destroyed",
+    "enemy_killed": "sfx_enemy_killed",
+    "wave_started": "sfx_wave_start",
+    "crisis_cleared": "sfx_crisis_cleared",
+    "turret_equipped": "sfx_refit_place"
+  },
+
+  "bgm_by_state": {
+    "_doc": "阶段 → BGM 的自动接线（订阅 game_state_changed）。空字符串 = 该阶段不切歌（保持当前）。",
+    "MENU": "",
+    "REFIT": "bgm_refit",
+    "BATTLE": "bgm_battle",
+    "RESULT": "bgm_defeat"
+  },
+
+  "sfx": {
+    "_doc": "bus = 目标总线键名（见 buses）；limit_ms/max_per_window = 防爆时间窗；tone = 缺文件时的合成参数。\n     limit_ms = 0 表示不限流（低频音不需要）。",
+
+    "sfx_main_gun_fire":     { "bus": "sfx", "path": "res://assets/audio/sfx_main_gun_fire.wav",     "volume_db": -2.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 90.0,  "dur": 0.30, "decay": 9.0,  "noise": 0.35, "shape": "square" } },
+    "sfx_sub_gun_fire":      { "bus": "sfx", "path": "res://assets/audio/sfx_sub_gun_fire.wav",      "volume_db": -5.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 220.0, "dur": 0.16, "decay": 16.0, "noise": 0.30, "shape": "square" } },
+    "sfx_sub_gun_fire_fast": { "bus": "sfx", "path": "res://assets/audio/sfx_sub_gun_fire_fast.wav", "volume_db": -7.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 420.0, "dur": 0.07, "decay": 26.0, "noise": 0.40, "shape": "square" } },
+    "sfx_sub_gun_fire_heavy":{ "bus": "sfx", "path": "res://assets/audio/sfx_sub_gun_fire_heavy.wav","volume_db": -3.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 120.0, "dur": 0.34, "decay": 8.0,  "noise": 0.25, "shape": "square" } },
+    "sfx_projectile_hit":    { "bus": "sfx", "path": "res://assets/audio/sfx_projectile_hit.wav",    "volume_db": -6.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 700.0, "dur": 0.06, "decay": 30.0, "noise": 0.50, "shape": "noise" } },
+    "sfx_turret_damaged":    { "bus": "sfx", "path": "res://assets/audio/sfx_turret_damaged.wav",    "volume_db": -8.0, "limit_ms": 250, "max_per_window": 1, "tone": { "freq": 160.0, "dur": 0.10, "decay": 18.0, "noise": 0.60, "shape": "noise" } },
+    "sfx_turret_destroyed":  { "bus": "sfx", "path": "res://assets/audio/sfx_turret_destroyed.wav",  "volume_db": -1.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 70.0,  "dur": 0.55, "decay": 5.0,  "noise": 0.70, "shape": "noise" } },
+    "sfx_sector_breached":   { "bus": "sfx", "path": "res://assets/audio/sfx_sector_breached.wav",   "volume_db": -1.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 320.0, "dur": 0.70, "decay": 4.0,  "noise": 0.35, "shape": "square" } },
+    "sfx_all_destroyed":     { "bus": "sfx", "path": "res://assets/audio/sfx_all_destroyed.wav",     "volume_db": 0.0,  "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 55.0,  "dur": 1.20, "decay": 3.0,  "noise": 0.50, "shape": "noise" } },
+    "sfx_enemy_killed":      { "bus": "sfx", "path": "res://assets/audio/sfx_enemy_killed.wav",      "volume_db": -7.0, "limit_ms": 80,  "max_per_window": 2, "tone": { "freq": 520.0, "dur": 0.12, "decay": 20.0, "noise": 0.40, "shape": "square" } },
+    "sfx_wave_start":        { "bus": "sfx", "path": "res://assets/audio/sfx_wave_start.wav",        "volume_db": -3.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 380.0, "dur": 0.50, "decay": 6.0,  "noise": 0.20, "shape": "square" } },
+    "sfx_crisis_cleared":    { "bus": "sfx", "path": "res://assets/audio/sfx_crisis_cleared.wav",    "volume_db": -4.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 660.0, "dur": 0.40, "decay": 6.0,  "noise": 0.10, "shape": "sine" } },
+
+    "sfx_ui_click":          { "bus": "ui",  "path": "res://assets/audio/sfx_ui_click.wav",          "volume_db": -4.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 900.0, "dur": 0.05, "decay": 30.0, "noise": 0.0,  "shape": "sine" } },
+    "sfx_ui_hover":          { "bus": "ui",  "path": "res://assets/audio/sfx_ui_hover.wav",          "volume_db": -8.0, "limit_ms": 60,  "max_per_window": 1, "tone": { "freq": 1200.0,"dur": 0.03, "decay": 40.0, "noise": 0.0,  "shape": "sine" } },
+    "sfx_refit_place":       { "bus": "ui",  "path": "res://assets/audio/sfx_refit_place.wav",       "volume_db": -3.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 500.0, "dur": 0.14, "decay": 14.0, "noise": 0.20, "shape": "square" } },
+    "sfx_refit_confirm":     { "bus": "ui",  "path": "res://assets/audio/sfx_refit_confirm.wav",     "volume_db": -2.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 300.0, "dur": 0.30, "decay": 7.0,  "noise": 0.10, "shape": "sine" } }
+  },
+
+  "bgm": {
+    "_doc": "loop = 循环播放。RESULT 的 bgm_defeat 单次不循环（知识库第 10 课）。",
+    "bgm_refit":  { "bus": "music", "path": "res://assets/audio/bgm_refit.ogg",  "volume_db": 0.0, "loop": true,  "tone": { "freq": 55.0, "dur": 4.0, "decay": 0.0, "noise": 0.15, "shape": "sine", "amp": 0.22 } },
+    "bgm_battle": { "bus": "music", "path": "res://assets/audio/bgm_battle.ogg", "volume_db": 0.0, "loop": true,  "tone": { "freq": 73.0, "dur": 4.0, "decay": 0.0, "noise": 0.25, "shape": "sine", "amp": 0.26 } },
+    "bgm_defeat": { "bus": "music", "path": "res://assets/audio/bgm_defeat.ogg", "volume_db": 0.0, "loop": false, "tone": { "freq": 44.0, "dur": 3.0, "decay": 0.0, "noise": 0.30, "shape": "sine", "amp": 0.24 } }
+  }
+}

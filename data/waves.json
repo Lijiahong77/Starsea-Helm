@@ -1,0 +1,18 @@
+{
+  "_doc": "波次调度与难度曲线的**单一真源**（目录约定见 docs/MODULES.md §五）。所有波次数值外置，禁止 hardcode 到脚本。",
+  "_doc_unit": "循环单位 = **危机**（bible 01_core_loop.md）：一波来袭 + 一次休整。wave_index 从 1 起，撑过的危机数 = 已清空的波数。",
+  "_doc_count": "本波敌人总数 = min(base_count + (wave_index - 1) * count_growth, max_count)。温和起步（用户 9/8 拍板）：首波 4 只，每波 +1；依据 interceptor 20hp、副炮每发 24 伤害一发即秒，分散到 5 面时自动火力刚好压得住。max_count 是防无限膨胀的硬顶（20 只时 5 面各 4 只，已是自动火力的处理上限）。",
+  "_doc_bomber": "bomber 不是一上来就出：bomber_start_crisis 之前全是 interceptor，给玩家 2-3 波学会「扫视 → 接管」。之后比例 = min(ratio_base + (wave_index - start) * ratio_growth, ratio_max)，缓升到 0.6 封顶 —— bomber 52hp / dps 7 是压力主旋钮，全 bomber 会让「不接管就必崩」，反而压掉决策空间。",
+  "_doc_hp_scale": "hp_scale_per_crisis 预留：按危机数放大敌人 hp 的系数（0 = 不放大）。当前取 0，靠「数量 + 配比」做难度；等实测自动火力过剩再开这个旋钮，避免同时动三个变量调不准手感。",
+  "_doc_not_here": "**本文件不含**生成节奏参数：用户 9/8 选定「一次全出」（进 BATTLE 时整波一起 spawn），靠 190m 飞行时间天然形成 bible 的预警(8s)→接敌→交战→清场 四个子阶段，因此没有批间隔 / 批次数字段。",
+  "wave": {
+    "base_count": 4,
+    "count_growth": 1,
+    "max_count": 20,
+    "hp_scale_per_crisis": 0.0,
+    "bomber_start_crisis": 4,
+    "bomber_ratio_base": 0.15,
+    "bomber_ratio_growth": 0.08,
+    "bomber_ratio_max": 0.6
+  }
+}

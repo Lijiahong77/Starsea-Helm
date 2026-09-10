@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://b8q7x2refit01"]
+
+[ext_resource type="Script" uid="uid://cigpvslrr3aes" path="res://scripts/systems/turret_system.gd" id="1_turret_sys"]
+[ext_resource type="Script" uid="uid://cnl1rupqbqs6y" path="res://scripts/systems/refit_sequence.gd" id="2_refit_seq"]
+[ext_resource type="Script" uid="uid://dce2p1jkmiv2n" path="res://scripts/tests/refit_probe.gd" id="3_probe"]
+
+[node name="RefitTest" type="Node"]
+script = ExtResource("3_probe")
+
+[node name="TurretSystem" type="Node3D" parent="."]
+script = ExtResource("1_turret_sys")
+
+[node name="RefitSequence" type="Node" parent="."]
+script = ExtResource("2_refit_seq")

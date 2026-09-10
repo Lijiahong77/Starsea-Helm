@@ -1,0 +1,31 @@
+# ══════════════════════════════════════════════════════════════
+#  Starsea Helm · .gitattributes
+#  作用：① 统一换行符 ② 告诉 Git 哪些是二进制（别做文本 diff / 换行转换）
+# ══════════════════════════════════════════════════════════════
+
+# 所有文件统一 LF 换行。
+# Windows 上 Git 默认 core.autocrlf=true，会把 LF 转成 CRLF，
+# 导致文件被反复标记成「已修改」。有了这一行就不用去改全局 git config。
+* text=auto eol=lf
+
+# 二进制资产 —— 不做换行转换、不做行级 diff
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.tga   binary
+*.webp  binary
+*.exr   binary
+*.hdr   binary
+*.dds   binary
+*.ogg   binary
+*.wav   binary
+*.mp3   binary
+*.ttf   binary
+*.otf   binary
+*.glb   binary
+*.gltf  binary
+*.fbx   binary
+*.obj   binary
+*.blend binary
+*.res   binary
+*.scn   binary

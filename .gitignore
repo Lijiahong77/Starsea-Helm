@@ -1,0 +1,52 @@
+# ══════════════════════════════════════════════════════════════
+#  Starsea Helm · .gitignore
+#  原则：只忽略「能重新生成的」和「只属于我这台机器的」。
+#  （原第 1 行保留：知识库第 13 课 —— .godot/ 没忽略 = clone 一次 5 分钟）
+# ══════════════════════════════════════════════════════════════
+
+# ── Godot 4 ───────────────────────────────────────────────────
+# 官方（4.1+）只要求忽略这两项：
+#   .godot/       编辑器缓存 + 导入产物，clone 后自动重建
+#   *.translation 由 CSV 自动生成的二进制翻译
+# ⚠ 不要忽略 *.import —— 它存的是每个资产的导入设置（mipmap / 滤波 / 压缩）。
+#   忽略的后果：别人 clone 下来全部按默认参数重导，⑪ 手感那批材质参数会漂。
+# ⚠ 不要忽略 *.uid —— Godot 4.4+ 靠它稳定引用资源（scripts/*.gd.uid 要提交）。
+.godot/
+*.translation
+
+# 导出配置。export_credentials.cfg 在 4.1+ 存签名密钥，必须排除。
+export_credentials.cfg
+export.cfg
+override.cfg
+
+# 构建产物
+/build/
+/dist/
+/android/
+*.exe
+*.pck
+*.apk
+
+# ── 本机生成物 ────────────────────────────────────────────────
+# Godot 的 user:// 被重定向到了项目根的 Godot/。
+# 里面是 shader cache、editor_settings、godot.log、调试截图 —— 全是我本机的东西，
+# 其中 app_userdata/.../logs/godot.log 会带本地绝对路径。
+Godot/
+NVIDIA Corporation/
+
+# 临时调试输出
+feel_out.txt
+
+# ── AI 协作文档 ───────────────────────────────────────────────
+# memory/ 故意留在仓库里 —— 逐日大事记 + DEC 决策链 + 踩坑记录，是这个项目的过程证据。
+# logs/ 只是本机跑测试的原始输出，噪音。
+.workbuddy/logs/
+
+# ── 系统 / 编辑器 ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
