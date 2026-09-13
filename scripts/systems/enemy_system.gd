@@ -37,6 +37,16 @@ const PRESSURE_INTERVAL := 0.25
 ## 让「生成时判定的扇区」和「运行时 sector_of 的归属」打架。见 _random_direction。
 const MAX_CONE_HALF_DEG := 45.0
 
+## 已实现的飞行方式（DEC-049，数据驱动分发）。`enemies.json` 的 `flight_<type>`
+## 必须落在本表里，否则判为未知并退回 `FLIGHT_DEFAULT`。
+##
+## **为什么在数据边界就校验**：一个写错的字符串（比如 "oribt"）如果直接透传给
+## Enemy，表现是「敌人飞着飞着突然不动了」—— match 没命中任何分支 → 没有位移。
+## 排查时会去翻飞行逻辑，而真凶其实是配置里的一个错字。与 ⑩ 音频
+## 「接线键名写错 → 静默静音」是同一类失败，故在校验层拦下。
+const FLIGHT_MODES: Array[StringName] = [&"hold", &"orbit", &"strike_retreat"]
+const FLIGHT_DEFAULT := &"hold"
+
 var _cfg: Dictionary = {}
 var _enemies: Array[Enemy] = []
 var _counts: Dictionary = {}
@@ -49,6 +59,10 @@ var _spawn_cone_deg := 30.0
 var _attack_range := 52.0
 var _pressure_ref := 6.0
 var _pressure_timer := 0.0
+
+## 已经告警过的配置键（`_warn_once` 用）。见 `_type_num` 的理由：满编 20 只敌人
+## 每只都会走一遍数值装配，逐次告警会把 Output 刷满。
+var _warned: Dictionary = {}
 
 
 func _ready() -> void:
@@ -79,8 +93,14 @@ func _physics_process(delta: float) -> void:
 ## 生成一个敌人。
 ## sector_id 为空 → 按 `enemy.sector_distribution` 权重随机选面（aft 权重为 0 即永不被选中，
 ## 依据 DEC-036 推进器高温区）。显式传 sector_id 用于测试定向生成。
+##
+## `flight_override` **只给测试用**：把「怎么飞」这个变量钉死，让断言只测它本来要测的东西
+## （典型场景：验伤害路由 / 端到端击杀时，绕飞会让"最近炮塔"随位置漂移，
+## 失败就分不清是路由算错还是飞行正常）。留空 = 走 `enemies.json` 的 `flight_<type>`，
+## 即业务代码的唯一路径。
 ## 返回生成出来的实例，方便测试脚本断言。
-func spawn_one(type_id: StringName, sector_id: StringName = &"") -> Enemy:
+func spawn_one(type_id: StringName, sector_id: StringName = &"",
+		flight_override: StringName = &"") -> Enemy:
 	var dir := _random_direction(sector_id)
 	var e := Enemy.new()
 	e.name = "Enemy_%s_%d" % [type_id, _enemies.size()]
@@ -88,7 +108,8 @@ func spawn_one(type_id: StringName, sector_id: StringName = &"") -> Enemy:
 	# 写入能进内部 transform，但读取走 get_global_transform()，不在树会直接
 	# ERR_FAIL 返回单位矩阵，于是读回来永远是 (0,0,0)（扇区就会全判成同一个面）。
 	add_child(e)
-	e.setup(type_id, _ship_center + dir * _spawn_radius, _ship_center, _stats_for(type_id))
+	e.setup(type_id, _ship_center + dir * _spawn_radius, _ship_center,
+		_stats_for(type_id, flight_override))
 	_enemies.append(e)
 	# 敌人被销毁/移除时自动出列，否则 _physics_process 会调到已释放实例而崩溃。
 	e.tree_exited.connect(_on_enemy_exited.bind(e))
@@ -212,17 +233,85 @@ func _recount_and_publish() -> void:
 
 ## 按类型组装数值包，交给 Enemy.setup()。
 ## 后缀规则与 `data/enemies.json` 的字段命名一致：`<字段>_<type>`。
-func _stats_for(type_id: StringName) -> Dictionary:
-	var suffix := "bomber" if type_id == &"bomber" else "interceptor"
+##
+## ⚠ 2026-09-11 修（DEC-049）：原实现在这里把类型**塌陷**成两档 ——
+## `"bomber" if type_id == &"bomber" else "interceptor"`。后果是 `heavy` 静默
+## 拿到**拦截机的 speed / hp / size / dps**，不报错，只是「重甲跑得跟战机一样快」。
+## 与 ⑩ 音频「接线键名写错 → 静默静音」同类：查不出来，但玩法是坏的。
+## 现在按 type_id 直拼后缀，缺键由 `_type_num` 主动告警一次再兜底。
+##
+## `flight_override` 非空时（测试专用，见 `spawn_one`）**跳过 JSON 直取该值** ——
+## 校验照做，防止测试本身把非法值喂进来而无人发现。
+func _stats_for(type_id: StringName, flight_override: StringName = &"") -> Dictionary:
+	var suffix := String(type_id)
 	return {
-		"speed": _num("speed_" + suffix, 10.0),
-		"hp": _num("hp_" + suffix, 20.0),
-		"size": _num("size_" + suffix, 6.0),
+		"speed": _type_num("speed", suffix, 10.0),
+		"hp": _type_num("hp", suffix, 20.0),
+		"size": _type_num("size", suffix, 6.0),
 		# 第⑤步：对炮塔的伤害速率。键名与 enemies.json 的 dps_<type> 一致；
 		# 兜底 3.0 与 JSON 的 dps_interceptor 同值（改数值请改 JSON）。
-		"dps": _num("dps_" + suffix, 3.0),
+		"dps": _type_num("dps", suffix, 3.0),
 		"attack_range": _attack_range,
+		# DEC-049：飞行方式。Enemy 拿它做行为分发。
+		# 测试覆盖值走**同一条校验**（非法值同样告警 + 退回 hold），
+		# 免得「测试自己写了个错值」这类问题被静默吞掉。
+		"flight": _flight_checked(
+			flight_override if flight_override != &"" else _flight_for(type_id)),
+		# DEC-049 Phase 1：两种飞行各自的旋钮。**全局键、不分型号** ——
+		# 目前只有一种型号用 orbit、一种用 strike_retreat，做成 per-type 只是提前抽象。
+		# 将来真出现「两种型号都绕飞但圈不一样大」，再升级成 `<字段>_<type>` 即可。
+		"orbit_speed_factor": _num("orbit_speed_factor", 1.0),
+		"pass_distance": _num("pass_distance", 30.0),
+		"retreat_range": _num("retreat_range", 120.0),
 	}
+
+
+## 读 `<字段>_<type>`，缺键 → 告警一次 + 兜底值。
+##
+## **为什么是「告警一次」而不是每次生成都告警**：满编 20 只敌人时每只都会走
+## 本函数，逐次告警会把 Output 刷满（正是本项目日志纪律要避免的事），
+## 而同一根因重复 20 遍也不会更好查。
+func _type_num(field: String, suffix: String, fallback: float) -> float:
+	var key := "%s_%s" % [field, suffix]
+	if _cfg.has(key):
+		return float(_cfg[key])
+	_warn_once(key, "enemies.json 缺 %s：type=%s 的该字段退回兜底 %.1f" % [key, suffix, fallback])
+	return fallback
+
+
+## 读 `flight_<type>` 并**校验取值在 FLIGHT_MODES 里**（理由见该常量注释）。
+## 缺键与「值写错」都退回 FLIGHT_DEFAULT + 告警一次。
+func _flight_for(type_id: StringName) -> StringName:
+	var key := "flight_%s" % type_id
+	if not _cfg.has(key):
+		_warn_once(key, "enemies.json 缺 %s：%s 退回飞行方式 %s" % [key, type_id, FLIGHT_DEFAULT])
+		return FLIGHT_DEFAULT
+	var mode := StringName(String(_cfg[key]))
+	if not FLIGHT_MODES.has(mode):
+		_warn_once(key, "enemies.json 的 %s=%s 不是已知飞行方式 %s：退回 %s" % [
+			key, mode, str(FLIGHT_MODES), FLIGHT_DEFAULT])
+		return FLIGHT_DEFAULT
+	return mode
+
+
+## 校验一个飞行方式取值，非法则告警一次 + 退回 `FLIGHT_DEFAULT`。
+## 抽出来是因为**有两条入口**都要走它：JSON（`_flight_for`）与测试覆盖
+## （`spawn_one` 的 `flight_override`）。合法值原样返回，是幂等的。
+func _flight_checked(mode: StringName) -> StringName:
+	if FLIGHT_MODES.has(mode):
+		return mode
+	_warn_once("flight:" + String(mode), "飞行方式 %s 不是已知取值 %s：退回 %s" % [
+		mode, str(FLIGHT_MODES), FLIGHT_DEFAULT])
+	return FLIGHT_DEFAULT
+
+
+## 同一 key 只告警一次（理由见 `_type_num`）。key 取配置键名，
+## 于是「同一根因的不同实例」各告警一次，够用且不刷屏。
+func _warn_once(key: String, msg: String) -> void:
+	if _warned.has(key):
+		return
+	_warned[key] = true
+	push_warning("[enemy] " + msg)
 
 
 func _load_config() -> void:

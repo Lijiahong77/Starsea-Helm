@@ -1,12 +1,18 @@
 extends Node3D
 class_name Enemy
 
-## 单个敌人实体：直线飞向飞船，进入攻击距离后停住并**持续伤害最近存活炮塔**。
+## 单个敌人实体：按 `flight` 字段选一种飞行方式飞向飞船，进入攻击距离后
+## **持续伤害最近存活炮塔**。
 ##
 ## 行为模型见 `docs/bible/02_entities.md §四`（Prototype 简化版）：
-##   生成于扇区外缘 → 直线飞向飞船 → 进入攻击距离 → 攻击最近炮塔
+##   生成于扇区外缘 → 飞向飞船 → 进入攻击距离 → 攻击最近炮塔
 ##
-## 第⑤步补齐了最后一环「攻击炮塔」：`advance()` 在悬停状态下每帧调 `_attack_tick`，
+## **DEC-049 · 飞行方式数据驱动分发**：本类不再把「直线飞进来停住」写死，
+## 而是 `_step_flight()` 按 `_flight` 分发到 `_fly_<mode>()`。Phase 0 只有
+## `hold`（= 原行为，逐帧等价）；`orbit` / `strike_retreat` 等后续加法是
+## 「加一个函数 + JSON 加一个值」，不动任何现有型号。
+##
+## 第⑤步补齐了最后一环「攻击炮塔」：`advance()` 在 engaged 状态下每帧调 `_attack_tick`，
 ## 按 `dps × delta` 扣最近存活炮塔的耐久；该炮塔被毁则下一帧自动改打次近的
 ## （因为每次都重新找，无需保存目标引用 —— 天然满足 bible「改打下一个最近的」）。
 ##
@@ -14,6 +20,11 @@ class_name Enemy
 
 ## 类型 id，对应 enemies.json 里的 `<字段>_interceptor` / `<字段>_bomber` 后缀。
 var type_id: StringName = &"interceptor"
+
+## 本型号的飞行方式（DEC-049），取值来自 `enemies.json` 的 `flight_<type>`，
+## 由 EnemySystem 在数据边界校验过（未知值会被退回 `hold`）。
+## 本类只负责分发，不负责合法性判断。
+var _flight: StringName = &"hold"
 
 ## 【日志纪律 2026-09-05】第⑤步「攻击炮塔」是本类的新行为 → 打印**打开**，
 ## 好在 Output 里直接确认敌人真的在啃炮塔；验完手玩后改 false。
@@ -40,7 +51,39 @@ var sector: StringName = &""
 
 var _target := Vector3.ZERO
 var _attack_range := 0.0
-var _stopped := false
+## 是否**已进入攻击距离**（= 可被炮塔锁定 / 正在交战）。
+##
+## ⚠ 2026-09-11 由 `_stopped` 改名并在语义上「瘦身」（DEC-049）。旧名字把两件事
+## 挤在一起：「到了攻击距离」和「停下不动」。自动开火的目标筛选吃的是前者，
+## 但名字表达的是后者 —— 于是「让敌人绕飞」会连带打断自动开火
+## （绕飞 = 永不静止 → `acquire_target` 一架都锁不上，全船哑火）。
+## 现在 `_engaged` 只表达「能不能打」，怎么飞由 `_step_flight()` 管。
+var _engaged := false
+## 本帧的真实速度向量（米/秒），`advance()` 用位置差采样。给 LeadPrediction 用。
+var _velocity := Vector3.ZERO
+## 船心。`_target` 是「**当前**正飞向的点」（绕飞 / 巡航时会变），`_center` 永远是真船心 ——
+## 「离船多远」一律相对它算（交战判定 / 绕飞半径 / 掉头距离都吃它）。
+var _center := Vector3.ZERO
+## 是否**曾经**进入过交战。只用于让 `_flight_time` 只在首次进场前累计
+## —— 巡航型会反复进出攻击圈，不区分的话「威胁窗口」这个诊断值会越累越长。
+var _ever_engaged := false
+
+## ── 飞行方式的旋钮（全部来自 enemies.json，本文件不 hardcode 数值）────
+## 绕飞（orbit）切向速度相对 `speed` 的倍率。**命中率主旋钮**，见 JSON 的 `_doc_orbit`。
+var orbit_speed_factor := 1.0
+## 巡航（strike_retreat）掠过时与船心的最近距离。
+var pass_distance := 30.0
+## 巡航（strike_retreat）飞离到多远才掉头。
+var retreat_range := 120.0
+
+## 绕飞轴向：**进入绕飞那一刻定下，之后不再变** —— 轨迹因此可预测、可断言。
+var _orbit_axis := Vector3.UP
+## 巡航：本趟要掠过的点 / 出射方向 / 本趟的进近起点 / 是否处于「飞离段」/ 本趟的侧别。
+var _pass_point := Vector3.ZERO
+var _exit_dir := Vector3.FORWARD
+var _run_entry := Vector3.ZERO
+var _run_out := false
+var _side := 1.0
 ## 当前正在打的炮塔 id。只用于**目标变化时打一条日志**（每帧打会淹没 Output），
 ## 不参与任何判定 —— 目标每帧重算，本字段对不上也不会打错人。
 var _attack_target_id: StringName = &""
@@ -86,6 +129,27 @@ func setup(p_type_id: StringName, spawn_pos: Vector3, target: Vector3, stats: Di
 	size = float(stats.get("size", 6.0))
 	dps = float(stats.get("dps", 0.0))
 	_attack_range = float(stats.get("attack_range", 50.0))
+	# DEC-049：飞行方式。合法性由 EnemySystem._flight_for() 在数据边界保证
+	# （未知值会被拦成 hold），这里只防御性取默认值 —— 直接 new() 出来做测试
+	# 的敌人不经过 EnemySystem，也得能正常飞。
+	_flight = StringName(String(stats.get("flight", "hold")))
+	orbit_speed_factor = float(stats.get("orbit_speed_factor", 1.0))
+	pass_distance = float(stats.get("pass_distance", 30.0))
+	retreat_range = float(stats.get("retreat_range", 120.0))
+	# 飞行/交战状态复位。setup() 现阶段只被调一次，但状态字段在这里归零成本为零，
+	# 且将来若出现「对象池复用敌人」（避免频繁 allocate）这就是必须的一步。
+	_center = target
+	_engaged = false
+	_ever_engaged = false
+	_velocity = Vector3.ZERO
+	_run_out = false
+	_side = 1.0
+	_flight_time = 0.0
+	# 巡航型起飞前要先规划第一趟航线（通过点 / 进近起点都从当前位置算）。
+	# 放在 sector 判定之前：_plan_run 会写 `_target`，而 sector 只吃 global_position，
+	# 顺序其实无关 —— 但保持在"状态初始化"这一段里更好读。
+	if _flight == &"strike_retreat":
+		_plan_run(1.0)
 	sector = Sectors.sector_of(global_position, _target)
 	_build_mesh(size)
 	# 进 group 供 Projectile 命中检测查找。
@@ -97,30 +161,165 @@ func setup(p_type_id: StringName, spawn_pos: Vector3, target: Vector3, stats: Di
 
 ## 推进一帧。**由 EnemySystem 调用**，不是走 `_physics_process` ——
 ## 这样「移动」和「扇区统计」能在同一次遍历里完成，满编 20 个敌人时少 20 次回调。
-## 返回 true 表示本帧刚好进入攻击距离并停住（调用方可据此发一次事件）。
+## 返回 true 表示本帧**刚好进入攻击距离**（调用方可据此发一次事件）。
 ##
-## 悬停后不再移动，改为每帧 `_attack_tick` 输出伤害（第⑤步）。
+## **本函数不再自己算位移**（DEC-049）：位移整个交给 `_step_flight()` 分发出去的
+## `_fly_<mode>()`，这里只做三件事 —— 采样真实速度、判「刚交战」、输出伤害。
+## 这样「加一种飞行方式」永远不需要碰本函数。
+##
+## ⚠ 与 Phase 0 的差别：`_engaged` 现在**由各 `_fly_*()` 自行维护**，不再由本函数
+## 一次性 latch。因为巡航型（strike_retreat）会**反复进出**攻击圈，
+## 「进来了却不开火」或「飞走了还掉血」都源于这里没每帧重算。
 func advance(delta: float) -> bool:
 	_tick_flash(delta)
-	if _stopped:
+	# 「威胁窗口」只在**首次进场之前**累计。巡航型会反复进出攻击圈，
+	# 不区分的话这个诊断值会越累越长、失去意义。
+	if not _ever_engaged:
+		_flight_time += delta
+	var before := global_position
+	var was_engaged := _engaged
+	_step_flight(delta)
+	# 真实速度 = 位置差 / delta。**用飞行前的位置**，且 delta 为 0 时不做除法
+	# （固定步长测试传 0 会得到 inf，污染 LeadPrediction）。
+	_velocity = (global_position - before) / delta if delta > 0.0 else Vector3.ZERO
+	var just_engaged := (not was_engaged) and _engaged
+	if _engaged:
+		_ever_engaged = true
+	if just_engaged:
+		# 交战那一帧只标记、不输出伤害（与拆分前一致，少一次 dps×delta，无感）。
+		return true
+	if _engaged:
 		_attack_tick(delta)
-		return false
-	_flight_time += delta
-	var to_target: Vector3 = _target - global_position
-	var dist := to_target.length()
-	if dist <= _attack_range:
-		_stopped = true
-		return true
-	var step := speed * delta
-	if step >= dist:
-		global_position = _target
-		_stopped = true
-		return true
-	global_position += to_target.normalized() * step
 	return false
 
 
-## 悬停状态下的攻击：按 `dps × delta` 扣最近存活炮塔的耐久。
+## 飞行方式分发（DEC-049）。
+##
+## **加一种飞行方式 = 这里加一个分支 + `_fly_xxx()` + enemies.json 加一个值**，
+## 不改任何现有型号。取值合法性已由 `EnemySystem._flight_for()` 在数据边界校验过
+## （未知值会被退回 hold），所以 `_` 分支只是防御性兜底，不是主路径。
+##
+## 各 `_fly_*()` 的职责：**改位置 + 维护 `_engaged`**。不要在这里判伤害/闪白。
+func _step_flight(delta: float) -> void:
+	match _flight:
+		&"orbit":
+			_fly_orbit(delta)
+		&"strike_retreat":
+			_fly_strike_retreat(delta)
+		_:
+			_fly_hold(delta)
+
+
+## hold：直线飞向目标点，进入 `attack_range` 后**停住不动**并持续输出。
+##
+## bible 02 §四 的 Prototype 初版行为。**与拆分前逐帧等价**（Phase 0 的回归全绿
+## 就是靠这个等价关系证明「语义拆分没改变表现」）。
+## `_engaged` 在这里是**一次性 latch**：停下来就不再离开，符合"悬停"的定义。
+func _fly_hold(delta: float) -> void:
+	if _engaged:
+		return
+	var to_target: Vector3 = _target - global_position
+	var dist := to_target.length()
+	if dist <= _attack_range:
+		_engaged = true
+		return
+	var step := speed * delta
+	if step >= dist:
+		global_position = _target
+		_engaged = true
+		return
+	global_position += to_target.normalized() * step
+
+
+## orbit：进场照旧走直线，**进入攻击距离后沿「以船心为圆心、attack_range 为半径」的圆飞行**。
+##
+## 半径恒等于 `attack_range` → 绕飞不改变「离船多远」，威胁窗口与 hold 相同；
+## 变的只是**它在动**。李 2026-09-11 拍板「贴着 attack_range 绕」即此。
+##
+## ⚠ 两个必须知道的设计后果（不是 bug）：
+##   ① 绕整船一圈会**跨扇区** —— 扇区压力会随时间转移（系统本来就支持"扇区动态"）；
+##   ② `_attack_tick` 每帧找最近炮塔 → 伤害会**摊到沿途各门炮**，而不是集中打爆一门。
+##      若这削弱了「战损驱动改装」的决策感，调小 `orbit_speed_factor` 或改回 hold。
+func _fly_orbit(delta: float) -> void:
+	if not _engaged:
+		_fly_hold(delta)
+		if _engaged:
+			# 用**进入攻击距离那一刻的径向**定轴：之后整条轨迹就确定了。
+			_orbit_axis = _orbit_axis_for(global_position - _center)
+		return
+	var radial := global_position - _center
+	if radial.length_squared() < 1e-6:
+		radial = Vector3.FORWARD   # 退化保护：恰好与船心重合时不该发生，兜一下不崩
+	var angular := speed * orbit_speed_factor / maxf(_attack_range, 0.01) * delta
+	global_position = _center + radial.rotated(_orbit_axis, angular)
+
+
+## 绕飞轴：径向与 UP 近乎平行时（正上 / 正下方来袭）绕 UP 转等于**原地不动**，
+## 换一根不平行的轴，保证「一定看得见它在动」。
+func _orbit_axis_for(radial: Vector3) -> Vector3:
+	var r := radial.normalized()
+	return Vector3.BACK if absf(r.dot(Vector3.UP)) > 0.9 else Vector3.UP
+
+
+## strike_retreat：**反复来回的进攻航线**（中型 / 重甲）。
+##
+## **⚠ 不是「打完就逃」** —— 李 2026-09-11 明确纠正：
+## 「它们都是会来回进攻的，飞来飞去的进攻，不是说逃跑了」。
+## 所以这是一个**循环**：冲进来打一趟 → 顺着飞出去 → 掉头从另一侧再冲一趟，如此往复。
+## **玩家不能靠"等它飞走"来过波**，必须把它打掉。
+##
+## 与 hold 的两点本质差别：
+##   ① `_engaged` **每帧由几何重算**（离船心 ≤ attack_range 才算交战），
+##      于是「穿过攻击圈的那一段」在打、「回旋段」不打 —— 伤害自然变成脉冲式；
+##   ② 掠过时**不会穿过船体**：通过点偏离船心 `pass_distance`，是"擦着过去"的航线。
+func _fly_strike_retreat(delta: float) -> void:
+	if _run_out:
+		global_position += _exit_dir * speed * delta
+		if global_position.distance_to(_center) >= retreat_range:
+			# 飞够远了 → 掉头，**从另一侧**规划下一趟。
+			# 「换侧」是这条航线的灵魂：原路来回 = 忽进忽退（李明确不要）。
+			_plan_run(-_side)
+	else:
+		var to_pass := _pass_point - global_position
+		var dist := to_pass.length()
+		var step := speed * delta
+		if dist <= step:
+			global_position = _pass_point
+			# 到通过点 → 顺着**本趟的进近航向**飞出去（不是原地掉头，所以"顺着飞走"）。
+			var heading := _pass_point - _run_entry
+			if heading.length_squared() > 1e-6:
+				_exit_dir = heading.normalized()
+			_run_out = true
+		else:
+			global_position += to_pass.normalized() * step
+	# 交战状态每帧重算（理由见类注释 ①）。它同时决定「能不能被锁定」与「打不打炮塔」。
+	_engaged = global_position.distance_to(_center) <= _attack_range
+
+
+## 规划一趟攻击航线：算好本趟的通过点，并记下进近起点（用于推出射方向）。
+##
+## `side` = ±1 决定从船心的哪一侧掠过；每次掉头都翻号，于是来回两趟走不同侧。
+func _plan_run(side: float) -> void:
+	_side = side
+	var dir := _center - global_position
+	if dir.length_squared() < 1e-6:
+		dir = Vector3.FORWARD
+	dir = dir.normalized()
+	var perp := dir.cross(Vector3.UP)
+	if perp.length_squared() < 1e-6:
+		# 正上 / 正下方向进近时 cross(UP) 退化为零向量 → 换一根参考轴。
+		perp = dir.cross(Vector3.BACK)
+	if perp.length_squared() < 1e-6:
+		perp = Vector3.RIGHT
+	_pass_point = _center + perp.normalized() * pass_distance * side
+	# `_target` 要跟着走：flight_target() 报告的是「我正朝哪飞」，
+	# 提前量诊断 / 未来调试都吃它，停在船心上就是假值。
+	_target = _pass_point
+	_run_entry = global_position
+	_run_out = false
+
+
+## 交战状态（engaged）下的攻击：按 `dps × delta` 扣最近存活炮塔的耐久。
 ##
 ## **为什么每帧重找目标而不缓存**：bible 02 §四要求「该炮塔死则改打下一个最近的」。
 ## 缓存引用要自己订阅 turret_destroyed 并清理，还会遇到「悬空引用」；
@@ -198,18 +397,52 @@ func hp_ratio() -> float:
 ## 本敌人正飞向的那个点（通常是船心，由 EnemySystem 从 enemies.json 的
 ## ship_center 算出后注入 setup）。
 ##
-## **为什么要暴露**：LeadPrediction 需要目标速度，而敌人是直线匀速飞行，
-## 速度方向 = (飞行目标 - 当前位置).normalized()。调用方（Turret._target_velocity）
-## 原本**自己 hardcode 了一份 ship_center**，等于船心坐标在代码里存了两份 ——
-## 改 JSON 里的 ship_center 时这里不会跟着变，弹道预测就会系统性偏。
+## **为什么要暴露**：调用方原本**自己 hardcode 了一份 ship_center**，等于船心坐标
+## 在代码里存了两份 —— 改 JSON 里的 ship_center 时那边不会跟着变，就会系统性偏。
 ## 违反「数值只给旋钮不给终值」，故改为从敌人身上读真值。
+##
+## ⚠ DEC-049 起它**不再是提前量的来源**：那是 `velocity()` 的活。本函数只回答
+## 「我正朝哪飞」，飞行方式一变（绕飞 / 撤离）这个点仍然是真值，但由它推速度就不准了。
 func flight_target() -> Vector3:
 	return _target
 
 
-## 是否已进入攻击距离并悬停。
+## 本帧的真实速度向量（米/秒），由 `advance()` 用「位置差 / delta」采样。
+##
+## **为什么不再让调用方自己推方向**：旧写法是
+## `(flight_target() - global_position).normalized() * speed` —— 它假设敌人
+## **永远直线匀速飞向目标点**。直线飞行时这是对的，但绕飞的切向速度、
+## 撤离时的反向速度都推不出来，弹道提前量会系统性偏（表现为「手动接管打
+## 移动中的敌人总是打空，自动开火反而准 —— 因为自动开火只在 engaged 时打」）。
+## 采样真值对任何飞行方式都成立，且直线飞行时与旧算法**逐帧等价**。
+##
+## 未推进过时返回 ZERO，语义与「静止」一致 —— 调用方不必特判 hover。
+func velocity() -> Vector3:
+	return _velocity
+
+
+## 是否已进入攻击距离（= 可被炮塔锁定 / 正在交战）。
+##
+## ⚠ **这是「能不能锁」的唯一权威判据**，`Turret.acquire_target()` 吃它。
+## 它与「是否静止」是两件事 —— 拆分前两者共用一个 `is_hovering()`，
+## 于是「让敌人绕飞」会连带打断自动开火（绕飞 = 永不静止 → 一架都锁不上）。
+## 见 DEC-049。
+func is_engaged() -> bool:
+	return _engaged
+
+
+## 是否正**静止**悬停在攻击距离上。只表达「不动」，不表达「能不能打」
+## —— 需要后者请用 `is_engaged()`。
+##
+## 现在等价于「engaged 且 flight == hold」，因为 hold 是唯一的静止飞行方式；
+## 将来加 orbit / strike_retreat 后它天然为 false，本函数无需再改。
 func is_hovering() -> bool:
-	return _stopped
+	return _engaged and _flight == &"hold"
+
+
+## 当前飞行方式（自省 / 测试用；业务代码不该靠它做判定，该由 `_step_flight` 分发）。
+func flight_mode() -> StringName:
+	return _flight
 
 
 ## 是否已死亡（hp<=0）。第④步起用于过滤「已被打掉不应再挨命中检测」的敌人。
