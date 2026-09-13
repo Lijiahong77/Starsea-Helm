@@ -105,10 +105,13 @@ func _test_damage_routing(ts: TurretSystem, es: EnemySystem) -> Enemy:
 	var dps := _enemy_num("dps_interceptor")
 	_check("enemies.json 的 dps_interceptor > 0（实测 %.1f）" % dps, dps > 0.0)
 
-	var e := es.spawn_one(&"interceptor", &"port")
+	# ⚠ DEC-049：**把飞行方式钉成 hold**。本用例验的是「伤害路由」，而拦截机现在默认绕飞
+	# —— 绕飞时「最近炮塔」会随位置漂移，多门炮一起掉血，这条「只有 1 门在挨打」的断言
+	# 就分不清失败是"路由算错"还是"飞行正常"。一次只让一个变量动。
+	var e := es.spawn_one(&"interceptor", &"port", &"hold")
 	for _i in APPROACH_FRAMES:
 		e.advance(DT)
-	_check("拦截机已进入攻击距离并悬停", e.is_hovering())
+	_check("拦截机已进入攻击距离（hold 飞行，静止）", e.is_engaged() and e.is_hovering())
 
 	var before := {}
 	for id in ALL_IDS:

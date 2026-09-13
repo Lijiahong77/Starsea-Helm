@@ -81,6 +81,13 @@ var _flash_on := false
 var _flash_left := 0.0
 var _flash_cd := 0.0
 
+## ── ⑪ ③ 临界警报（2026-09-11 · DEC-048）────────────────────
+## 敌人是**持续 dps**（每物理帧调 take_damage），所以受击反馈不能按帧给。
+## 改为「跨阈值才响一次」：耐久首次跌破 `FeelKit.critical_ratio()` 时，
+## emit 一条**低频**的 `turret_critical` → GameFeel 重震一次 + AudioManager 响警报。
+## 每波由 `restore()` 复位，所以「这一波已经报过警」不会跨波残留。
+var _critical_fired := false
+
 
 func _ready() -> void:
 	# 监听手动发射信号。本类自己 connect 不合适（多个 turret 会重复 connect 同一个 signal），
@@ -144,9 +151,31 @@ func advance(delta: float) -> void:
 	var target := acquire_target()
 	if target == null:
 		return
-	# 自动模式：直接指向目标当前位置（敌人悬停时不需要 LeadPrediction）
-	var dir := (target.global_position - muzzle_pos).normalized()
-	_fire(dir, target)
+	_fire(_aim_dir(target), target)
+
+
+## 自动模式的开火方向（DEC-049 Phase 1）。
+##
+## 旧实现是「直接指向目标当前位置」，注释还写着「敌人悬停时不需要 LeadPrediction」
+## —— 那是 **hold 是唯一飞行方式时的结论**，不是一条普遍规律。
+## 一旦敌人会绕飞 / 巡航，按当前位置开火会**系统性打空**：
+## 弹丸飞 52m 要 ≈0.26 s，这段时间目标已横移好几米，而敌人 hitbox 只有 6~14 m。
+## 表现是「自动炮明明在响，敌人血不掉」——最容易被误判成命中检测坏了。
+##
+## 现在：有速度就算提前量，没速度（悬停）就等价于旧行为。
+## **不动 = 提前点为它本身**，所以这个改动对 hold 敌人逐帧等价。
+func _aim_dir(target: Enemy) -> Vector3:
+	var v: Vector3 = target.velocity()
+	var aim_at: Vector3 = target.global_position
+	if v.length_squared() > 1e-4:
+		var intercept := LeadPrediction.intercept_point(
+			muzzle_pos, target.global_position, v, projectile_speed)
+		if intercept.length_squared() > 1e-6:
+			aim_at = intercept
+	var to_aim := aim_at - muzzle_pos
+	if to_aim.length_squared() < 1e-6:
+		return Vector3.ZERO
+	return to_aim.normalized()
 
 
 ## 接管/退接管由 TurretSystem 调。Turret 自己仅切 mode 标志，不动相机。
@@ -175,6 +204,34 @@ func is_alive() -> bool:
 	return not destroyed
 
 
+## 剩余耐久比例 0..1。与 `Enemy.hp_ratio()` 同语义（临界判定与将来的血条都用它）。
+## hp_max 未初始化（= 0）时返回 1：避免除零，也让「还没 configure 的测试炮塔」显示满状态。
+func hp_ratio() -> float:
+	if hp_max <= 0.0:
+		return 1.0
+	return clampf(hp / hp_max, 0.0, 1.0)
+
+
+## ⑪ ③ 临界警报：耐久**首次**跌破 `FeelKit.critical_ratio()` 时 emit 一次 turret_critical。
+##
+## **为什么实体只发事件、不自己放音效 / 震屏**：这两件事分别归 ⑩（音）与 ⑪（相机），
+## 且都要靠接线表（audio.json 的 `events` / presentation.json 的 `feel.events`）分发强度 ——
+## 实体只该负责「我进入危险状态了」这个**事实**。⑩ 的 `turret_destroyed` 是同一套写法。
+##
+## 阈值取 0 视为关闭该反馈（`FeelKit.critical_ratio()` 返回 0 直接 return）。
+## `_critical_fired` 先置位再 emit：避免订阅方在回调里又把本函数拽起来造成重入。
+func _check_critical() -> void:
+	if _critical_fired:
+		return
+	var threshold := FeelKit.critical_ratio()
+	if threshold <= 0.0:
+		return
+	if hp_ratio() > threshold:
+		return
+	_critical_fired = true
+	EventBus.turret_critical.emit(turret_id, sector)
+
+
 ## 挨打（⑤ 炮塔耐久）。由 Enemy 在悬停时每帧调用，amount = dps × delta。
 ##
 ## **伤害是连续的，不是一发一发的**：bible 02 §四「进入攻击距离后**持续**伤害」，
@@ -185,19 +242,25 @@ func is_alive() -> bool:
 ## source_id = 打我的敌人类型 id。⑨a（2026-09-10）起**真的被用上了**：
 ## 随 turret_damaged 一起发出去，DamageLog 据此做「伤害来源按敌人类型分」的统计，
 ## 于是战损报告才能回答「为什么掉的」而不只是「掉了多少」。
-## 9/6 预留这个参数时加了 `_` 前缀压未使用告警 —— 现在解禁。
+##
+## ⚠ **本函数每物理帧都会被调**，所以它产生的任何「反馈」都必须自带节流。
+## 2026-09-11（DEC-048）之前这里每帧调一次 `AudioManager.play_sfx`、震屏则靠订阅
+## `turret_damaged` —— 净效果是「只要还有敌人在啃炮塔，画面就一直抖、音就一直响」，
+## 正是李实机反馈的「一被攻击就搞这么大动静」。
+## 现在**本函数不再产生任何声音**；受创的离散反馈统一走 `_check_critical()`
+## （耐久首次跌破阈值时发一次）。`turret_damaged` 仍每帧发，因为它是 DamageLog 的
+## **记账流水**而不是给玩家看的反馈 —— 数据与反馈的节流需求正好相反。
 func take_damage(amount: float, source_id: StringName = &"") -> void:
 	if destroyed or amount <= 0.0:
 		return
 	hp -= amount
 	EventBus.turret_damaged.emit(turret_id, amount, source_id)
-	# ⑩ 受创音：同样是**每帧**在响（敌人持续 dps），所以走直调 + AudioManager 的
-	# 250ms 时间窗（audio.json 的 sfx_turret_damaged）—— 一帧一声会变成刺耳的长鸣。
-	AudioManager.play_sfx(&"sfx_turret_damaged", sector)
 	if hp > 0.0:
 		# ⑪ 还活着 → 闪白。**每物理帧都会被调**（敌人持续 dps），
 		# 所以闪白内部带冷却，否则炮塔会一直卡在白态（见 _hit_flash 的注释）。
 		_hit_flash()
+		# ⑪ ③ 临界警报：跨过阈值才响一次（自带「每波一次」守卫，见 _check_critical）。
+		_check_critical()
 		return
 	hp = 0.0
 	destroyed = true
@@ -223,11 +286,19 @@ func restore() -> void:
 	_flash_on = false
 	_flash_left = 0.0
 	_flash_cd = 0.0
+	# ⑪ ③ 临界警报也要复位：否则「上一波报过警」会被记住，新一波跌破阈值却一声不响 ——
+	# 表现是「这门炮没被修好」的错觉。与闪白冷却同理，凡是"每波一次"的状态都在这里清。
+	_critical_fired = false
 	_apply_alive_visual()
 
 
-## 找最近且悬停且活的敌人（活 = hp>0；白盒阶段不区分活/死，但提前防御免得 Round 2 翻车）。
+## 找**最近、已进入攻击距离、且活着**的敌人（活 = hp>0）。
 ## 返回 Enemy 或 null。null 时调用方静默 skip 即可。
+##
+## ⚠ DEC-049：判据由 `is_hovering()` 改为 `is_engaged()`。两者在 hold 飞行下等价，
+## 但语义不同 —— 本函数要的是「**能不能锁**」（进了攻击距离就算数），
+## 不是「**是否静止**」。用错的那个会让「绕飞的敌人」永远锁不上，
+## 表现为全船哑火却查不出原因。
 ##
 ## ⚠ 2026-09-06：查找方式从 `get_node("Bridge/EnemySystem")` 改为 **group**。
 ## 原写法有两个坑：① 主场景根节点一改名就静默返回 null → 所有炮塔永远找不到
@@ -242,7 +313,7 @@ func acquire_target() -> Enemy:
 			continue
 		if e.is_dead():
 			continue
-		if not e.is_hovering():
+		if not e.is_engaged():
 			continue
 		var d: float = muzzle_pos.distance_to(e.global_position)
 		if d > fire_range:
@@ -328,15 +399,15 @@ func _on_turret_fired(fired_id: StringName) -> void:
 ## （注释还标着「enemies.json ship_center」），等于船心坐标在代码里存了第二份。
 ## 改 JSON 的 ship_center 时这里纹丝不动，LeadPrediction 的拦截点就会系统性偏，
 ## 表现为「自动开火打得准、手动接管打不准」（两者走的都是本函数）。
-## 现改为从敌人身上读真值 `e.flight_target()`（由 EnemySystem 注入）。
-## Round 2 如出现机动敌人再升级为真实速度采样。
+##
+## ⚠ 2026-09-11（DEC-049）再升一级：从「按 flight_target 推方向」改成
+## **直接采样敌人的逐帧位移 `Enemy.velocity()`**。旧写法
+## `(flight_target() - global_position).normalized() * speed` 假设敌人永远
+## 直线匀速飞向目标点 —— 一旦出现绕飞 / 突进撤离这类机动，推出的方向就是错的，
+## 提前量系统性偏。采样真值对任何飞行方式都成立，且对直线飞行**逐帧等价**
+## （直线时位移方向 == 目标点方向，速度模长 == speed）。
 func _target_velocity(e: Enemy) -> Vector3:
-	if e.is_hovering():
-		return Vector3.ZERO
-	var to_target: Vector3 = e.flight_target() - e.global_position
-	if to_target.length_squared() < 1e-4:
-		return Vector3.ZERO
-	return to_target.normalized() * e.speed
+	return e.velocity()
 
 
 ## 视觉：白盒 BoxMesh 按 visual_size（沿 +Z 拉长），对准 +Z（fore 方向）。

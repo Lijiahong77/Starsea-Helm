@@ -97,17 +97,20 @@ func _test_independent_fire(ts: TurretSystem, es: EnemySystem) -> void:
 
 	var enemies: Array[Enemy] = []
 	for s in SUB_SECTORS:
-		enemies.append(es.spawn_one(&"interceptor", s))
+		# ⚠ DEC-049：钉成 hold。本用例验的是「四门副炮各自独立开火 + 端到端击杀」，
+		# 而拦截机现在默认绕飞 —— 绕飞会**跨扇区**，各炮的锁定目标会漂移，
+		# 于是失败就分不清是"炮的问题"还是"飞行正常"。一次只让一个变量动。
+		enemies.append(es.spawn_one(&"interceptor", s, &"hold"))
 
-	# 推进到悬停（acquire_target 只锁**悬停**中的敌人）
+	# 推进到进入攻击距离（acquire_target 只锁**已交战**的敌人）
 	for _i in APPROACH_FRAMES:
 		for e in enemies:
 			e.advance(1.0 / 60.0)
-	var hovering := 0
+	var engaged := 0
 	for e in enemies:
-		if e.is_hovering():
-			hovering += 1
-	_check("4 个敌人全部进入悬停（实测 %d/4）" % hovering, hovering == 4)
+		if e.is_engaged():
+			engaged += 1
+	_check("4 个敌人全部进入攻击距离（实测 %d/4）" % engaged, engaged == 4)
 
 	# 开战 → 副炮自动开火
 	ts.set_battle_active(true)

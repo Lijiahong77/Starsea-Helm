@@ -23,14 +23,19 @@ const DATA_PATH := "res://data/presentation.json"
 # 敌人参数的单一真源是 enemies.json（目录约定见 docs/MODULES.md §五）。
 const ENEMY_DATA_PATH := "res://data/enemies.json"
 
-# 数字键 → 接管目标。1 = 主炮（**唯一**的一门，直接接管）；
-# 2-5 = 四路 feed 的**扇区**（左/右/上/下），顺序与 SCREEN_FEED 四块屏一致。
+# 数字键 → **视角**目标。1 = 主炮；2-5 = 四路 feed 的**扇区**（左/右/上/下），
+# 顺序与 SCREEN_FEED 四块屏一致。
+#
+# ⚠ **这些键只切视角，不接管**（2026-09-11 · DEC-048）：切过去后炮塔仍保持 AUTO 自动开火，
+# 想自己打要再按**鼠标右键**（见 _input 的 MOUSE_BUTTON_RIGHT 分支）。
+# 拆开的原因：一按数字键就被动进入手动战斗（"这门炮归我负责"）会凭空加压，
+# 而多数时候玩家只是想"看一眼那一路"。
 #
 # ⚠ **2-5 的值是扇区不是炮塔 id**（⑧ 起）：每路可以装两门炮，按同键会
-# 在该路的炮位之间**循环切换**（转完一圈释放回主控室，见 TurretSystem.takeover_sector）。
+# 在该路的炮位之间**循环切换**（转完一圈回主控室，见 TurretSystem.focus_sector）。
 # 所以键位不会因为炮位数从 4 涨到 8 而膨胀到 9 个 ——
 # 「2-5 = 监控面板上 4 块屏」这个肌肉记忆保持不变。
-const TAKEOVER_KEYS := {
+const VIEW_KEYS := {
 	KEY_1: &"main", KEY_2: &"port", KEY_3: &"starboard",
 	KEY_4: &"dorsal", KEY_5: &"ventral",
 }
@@ -133,17 +138,20 @@ var _state: StringName = &"REFIT"
 var _lead_marker: MeshInstance3D
 const LEAD_MARK_SIZE := Vector3(0.4, 0.4, 0.4)
 
-# ── 接管副炮时的主视角搬移（DEC-038）────────────────────
-# 接管副炮 = 主视角切到该炮（舰体外表面，朝外看）；释放 = 搬回主控室。
+# ── 副炮视角搬移（DEC-038；2026-09-11 起由「视角」而非「接管」驱动）────
+# 视线切到某副炮 = 主视角搬到该炮（舰体外表面，朝外看）；回主控室 = 搬回去。
+# ⚠ **搬相机的是「看」不是「接管」**（DEC-048）：数字键 1-5 只切视角、炮塔保持 AUTO；
+# 鼠标右键才接管。所以本标志叫做 `_station_view`（人在舰外某个炮位）而不是
+# `_takeover_view` —— 名字要跟它真正描述的因果一致，否则读代码的人会去追一个不存在的关联。
 # 为什么是**搬 Player** 而不是新建相机：本脚本的转头状态（_yaw/_pitch）就是为
 # Player/Camera3D 写的，复用它能零改动复用鼠标瞄准；新建相机要同时改输入路由，
 # 收益不抵复杂度。代价是 Player 会短暂离开主控室 —— 白盒阶段可接受，
-# 若将来主控室加了「玩家碰撞/可走动」，这里要换成独立的 TakeoverRig 相机。
-# 主控室视角（位置 + yaw/pitch）在此暂存，释放时原样还原，玩家不会「转了个身」。
+# 若将来主控室加了「玩家碰撞/可走动」，这里要换成独立的 StationRig 相机。
+# 主控室视角（位置 + yaw/pitch）在此暂存，回主控室时原样还原，玩家不会「转了个身」。
 var _bridge_pos := Vector3.ZERO
 var _bridge_yaw := 0.0
 var _bridge_pitch := 0.0
-var _takeover_view := false
+var _station_view := false
 
 # ── 可见性判定的几何常量（**与 .tscn 同步**：改艏部窗洞尺寸时这里要一起改）──
 const WIN_Z := 1.8        # 艏部墙所在平面
@@ -272,11 +280,12 @@ func _ready() -> void:
 		EventBus.game_state_changed.connect(_on_game_state_changed)
 		# ⑤ 全部炮塔被毁 = 本局失败（DEC-037），由流程层转 RESULT
 		EventBus.all_turrets_destroyed.connect(_on_all_turrets_destroyed)
-		# 接管入口：feed 被点 = turret_system.takeover_by_feed
-		EventBus.monitor_feed_clicked.connect(_turret_system.takeover_by_feed)
-		# 接管/释放 → 主视角搬移（DEC-038：接管副炮 = 主视角切到该炮视角）
-		EventBus.turret_takeover_started.connect(_on_takeover_started)
-		EventBus.turret_takeover_ended.connect(_on_takeover_ended)
+		# 视角入口：feed 被点 = turret_system.focus_by_feed（**切去看，不接管**，DEC-048）
+		EventBus.monitor_feed_clicked.connect(_turret_system.focus_by_feed)
+		# 视角切换 → 主视角搬移（DEC-038；2026-09-11 起搬相机由「看」驱动而非「接管」）
+		EventBus.turret_view_changed.connect(_on_view_changed)
+		# ⚠ 不再订阅 turret_takeover_started/ended 来搬相机：那是旧设计（接管即搬移）。
+		# 现在「看」与「打」分离，接管只改开火权，镜头归 turret_view_changed 管。
 		# LeadPrediction marker：接管 MANUAL 时显示
 		_build_lead_marker()
 	# feed / 标记清单都从上面两张「唯一真源」表派生（节点缺失即 fail-fast，
@@ -917,7 +926,7 @@ func _on_feed_timer() -> void:
 	pass
 
 
-# ── 输入：第一人称转头 + ESC 释放鼠标 ───────────────────
+# ── 输入：第一人称转头 · 切视角(1-5) · 右键接管 · ESC 三级 ──
 func _input(event: InputEvent) -> void:
 	# ⑨b L3 终局演出期间**夺玩家操控**（DEC-043：取消操控 → 镜头运动 → 宣告）。
 	if _collapse != null and _collapse.is_locked():
@@ -934,13 +943,25 @@ func _input(event: InputEvent) -> void:
 		_camera.rotation.x = _pitch
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if not mb.pressed:
+			return
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			# 未捕获鼠标时，左键只用来"点进游戏"（捕获鼠标）；其它键不参与玩法。
+			if mb.button_index == MOUSE_BUTTON_LEFT:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-			else:
-				# 已 CAPTURED + 按下 = 扳机（手动模式下）
-				if _turret_system != null and _turret_system.current_manual_id != &"":
-					EventBus.turret_fired.emit(_turret_system.current_manual_id)
+			return
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			# 已 CAPTURED + 左键 = 扳机（仅手动模式；自动模式下炮塔自己打，左键无事可做）
+			if _turret_system != null and _turret_system.current_manual_id != &"":
+				EventBus.turret_fired.emit(_turret_system.current_manual_id)
+		elif mb.button_index == MOUSE_BUTTON_RIGHT:
+			# 右键 = 接管 / 释放（2026-09-11 · DEC-048，李拍板）。
+			# 选右键的理由：接管之后反正要用左键开火，右键"举起武器/进入瞄准"是 FPS
+			# 肌肉记忆（《战地》的 ADS），右手也不用离开鼠标去键盘上找接管键。
+			# 为什么不用左键：左键已经被扳机占了，且"点一下=开一炮"的语义不能改。
+			if _turret_system != null:
+				AudioManager.play_sfx(&"sfx_refit_confirm")
+				_turret_system.takeover_focused()
 	elif event is InputEventKey:
 		var k := event as InputEventKey
 		# ⑦ 维修站过场期间：**所有**按键先交给过场。
@@ -952,30 +973,36 @@ func _input(event: InputEvent) -> void:
 			_refit_seq.handle_key(k.keycode)
 			return
 		if k.pressed and k.keycode == KEY_ESCAPE:
-			# ESC 双阶段（④接管引入）：
-			#   ① 若当前接管某门炮 → 释放接管（回主控室），不切鼠标模式
-			#   ② 否则按原逻辑：CAPTURED → VISIBLE；VISIBLE → quit
+			# ESC 三级（2026-09-11 · DEC-048 起，因为"视角"与"接管"变成了两件事）：
+			#   ① 正在接管某门炮 → 先**释放接管**（炮塔回 AUTO，视角留在原地）
+			#   ② 视角在舰外某炮位 → **回主控室**
+			#   ③ 都不是 → CAPTURED → VISIBLE；VISIBLE → quit（原行为）
+			# 分级而不是一次退干净：玩家按 ESC 十有八九是想"先松手"，直接弹到主控室
+			# 会把"我还在看着那一路呢"的状态一起丢掉。
 			if _turret_system != null and _turret_system.current_manual_id != &"":
-				_turret_system.takeover(&"")
+				_turret_system.release()
+				return
+			if _turret_system != null and _station_view:
+				_turret_system.focus(&"")
 				return
 			if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else:
 				get_tree().quit()
-		elif k.pressed and TAKEOVER_KEYS.has(k.keycode):
-			# 1 = 主炮（直接接管）；2-5 = 某一路 feed，**再按同键切该路下一门炮**，
-			# 转完一圈回主控室（⑧ 每路两个炮位，见 TurretSystem.takeover_sector）。
-			# 接管副炮时主视角会搬到舰体外表面（见 _on_takeover_started）。
+		elif k.pressed and VIEW_KEYS.has(k.keycode):
+			# 1 = 主炮；2-5 = 某一路 feed。**只切视角，不接管**（2026-09-11 · DEC-048）：
+			# 切过去后炮塔照常自动开火，想自己打再按**鼠标右键**。
+			# 同一路再按一次 = 切该路下一门炮，转完一圈回主控室（见 TurretSystem.focus_sector）。
 			if _turret_system != null:
-				var target := TAKEOVER_KEYS[k.keycode] as StringName
-				# ⑩ 控制台点击音：接管是玩家最高频的操作，没有听觉反馈时
+				var target := VIEW_KEYS[k.keycode] as StringName
+				# ⑩ 控制台点击音：切视角是玩家高频操作，没有听觉反馈时
 				# 「按了 3 键但没切过去」和「按了 3 键切过去了但画面变化不明显」分不清。
 				# 键盘事件天然不会同帧重复，但仍过 AudioManager 的统一入口（限流表里 limit_ms=0）。
 				AudioManager.play_sfx(&"sfx_ui_click")
 				if target == &"main":
-					_turret_system.takeover(&"main")
+					_turret_system.focus(&"main")
 				else:
-					_turret_system.takeover_sector(target)
+					_turret_system.focus_sector(target)
 		elif k.pressed and k.keycode == KEY_B:
 			# B = 开战 / 收战开关。**这是第⑤步之前缺失的 BATTLE 入口**：
 			# 状态机初始 REFIT，而此前没有任何输入能切到 BATTLE，
@@ -1188,29 +1215,25 @@ func _on_wave_event(_wave_index: int) -> void:
 	_refresh_hud()
 
 
-## ⑦ 过场开始：先退接管再交给改装台（见 _ready 里 connect 处的注释）。
+## ⑦ 过场开始：先交出操控（释放接管 + 视角回主控室）再交给改装台。
+## **必须连视角一起清**（不只是释放接管）：过场会把镜头搬到改装台，
+## 若焦点还挂在某个炮位上，出过场后按右键会接管一门玩家根本没在看的炮。
 func _on_cutscene_started() -> void:
-	if _turret_system != null and _turret_system.current_manual_id != &"":
-		_turret_system.takeover(&"")
+	if _turret_system != null:
+		_turret_system.clear_focus()
 	_refresh_hud()
 
 
 ## ⑦ 改装台把镜头搬到指定炮位（turret_id == &"" → 回主控室）。
-## **完全复用接管的搬移逻辑，但不改炮塔模式**：改装时炮塔仍是 AUTO，
-## 玩家只是被带过去看一眼自己要换的那门炮以及换装特效。
-## 不复用 _on_takeover_started / _on_takeover_ended 的原因：那两个函数还会动
-## current_manual_id 并发 takeover 信号，改装时发「接管」信号是错的语义。
+## **复用"副炮视角搬移"这套逻辑，但不碰炮塔模式、也不写 TurretSystem 的视角状态**：
+## 改装时炮塔是 AUTO，玩家只是被带过去看一眼自己要换的那门炮以及换装特效。
+## 为什么不复用 _on_view_changed：那个函数由 `turret_view_changed` 触发，走的是
+## 「玩家真的在看哪一门」这条链路 —— 改装期间借它搬镜头会把焦点与镜头搅在一起。
 func _on_refit_focus(turret_id: StringName) -> void:
 	if _turret_system == null or _player == null:
 		return
 	if turret_id == &"":
-		if _takeover_view:
-			_takeover_view = false
-			_player.position = _bridge_pos
-			_yaw = _bridge_yaw
-			_pitch = _bridge_pitch
-			_player.rotation.y = _yaw
-			_camera.rotation.x = _pitch
+		_leave_station_view()
 		return
 	var t: Turret = _turret_system.get_turret(turret_id)
 	# ⑧ 空槽位（已解锁但还没装炮）**没有 Turret 实例**，问不到 muzzle_pos ——
@@ -1218,11 +1241,11 @@ func _on_refit_focus(turret_id: StringName) -> void:
 	var pos := t.muzzle_pos if t != null else _turret_system.slot_mount(turret_id)
 	if t == null and pos == Vector3.ZERO:
 		return    # 既没炮也没槽位定义（真·未知 id）：别把相机搬到原点
-	if not _takeover_view:
+	if not _station_view:
 		_bridge_pos = _player.position
 		_bridge_yaw = _yaw
 		_bridge_pitch = _pitch
-		_takeover_view = true
+		_station_view = true
 	_player.position = pos
 	_aim_outward(pos)
 
@@ -1240,39 +1263,49 @@ func _on_all_turrets_destroyed() -> void:
 	_refresh_hud()
 
 
-## 接管某门炮 → 把主视角搬到该炮位（DEC-038）。
-## **主炮（fore）不搬**：玩家留在主控室通过艏部舷窗打正面（DEC-026 + DEC-030），
-## 搬出去反而看不见舷窗、也丢掉「信息不对称」的体验前提。
-func _on_takeover_started(turret_id: StringName) -> void:
+## 视角切到某炮位 → 把主视角搬到该炮位（DEC-038）。
+## ⚠ **搬相机的是"看"不是"接管"**（2026-09-11 · DEC-048）：本函数**不改任何炮塔模式**。
+## 想自己开火由鼠标右键调 TurretSystem.takeover_focused() 完成（走 turret_takeover_started）。
+##
+## **主炮（fore）没有舰外视角**：玩家留在主控室、透过艏部舷窗看正面就是它的视角
+## （DEC-026 + DEC-030）。所以「切到主炮」= 视角回主控室 —— 这也是从副炮按 1 能回家的路径。
+func _on_view_changed(turret_id: StringName) -> void:
 	if _turret_system == null or _player == null:
 		return
-	var t: Turret = _turret_system.get_turret(turret_id)
-	if t == null or t.sector == &"fore":
+	if turret_id == &"" or turret_id == &"main":
+		_leave_station_view()
 		return
-	# 已在外视角时再接管另一门炮：不要覆盖掉「主控室原始视角」，直接改落点即可
-	if not _takeover_view:
+	var t: Turret = _turret_system.get_turret(turret_id)
+	if t == null:
+		return
+	if t.sector == &"fore":
+		_leave_station_view()
+		return
+	# 已在舰外时切到另一门炮：不要覆盖掉「主控室原始视角」，直接改落点即可
+	if not _station_view:
 		_bridge_pos = _player.position
 		_bridge_yaw = _yaw
 		_bridge_pitch = _pitch
-		_takeover_view = true
+		_station_view = true
 	_player.position = t.muzzle_pos
 	_aim_outward(t.muzzle_pos)
 	if DEBUG_LOG:
-		print("[takeover] 主视角 -> %s 炮位 %s（扇区 %s）" % [turret_id, str(t.muzzle_pos), t.sector])
+		print("[view] 主视角 -> %s 炮位 %s（扇区 %s）" % [turret_id, str(t.muzzle_pos), t.sector])
 
 
-## 释放接管 → 主视角搬回主控室，朝向还原到接管前。
-func _on_takeover_ended(_turret_id: StringName) -> void:
-	if not _takeover_view:
+## 视角回主控室：把暂存的位置与朝向**原样**还原（玩家不会"转了个身"）。
+## 登出点只有这一个 —— 过场开始、按 ESC 回主控室、按 1 切回主炮都走它。
+func _leave_station_view() -> void:
+	if not _station_view:
 		return
-	_takeover_view = false
+	_station_view = false
 	_player.position = _bridge_pos
 	_yaw = _bridge_yaw
 	_pitch = _bridge_pitch
 	_player.rotation.y = _yaw
 	_camera.rotation.x = _pitch
 	if DEBUG_LOG:
-		print("[takeover] 主视角 <- 回主控室 %s" % str(_bridge_pos))
+		print("[view] 主视角 <- 回主控室 %s" % str(_bridge_pos))
 
 
 ## 把视角朝向「远离船中心」的方向 —— 副炮装在舰体外表面，朝外才看得见来袭敌人。
@@ -1315,6 +1348,12 @@ func _build_lead_marker() -> void:
 ## 手动接管时实时算拦截点并把 marker 摆到那里。未接管 / 未找到目标时隐藏。
 ## 拦截点算法与 Turret._on_turret_fired 一致（LeadPrediction.intercept_point），复算每帧以
 ## 跟随玩家视角与敌人轨迹；不与子弹发射耦合，避免影响发射逻辑。
+##
+## ⚠ 2026-09-11（DEC-049）：速度改为直接读 `Enemy.velocity()`。原先本函数
+## **自己 hardcode 了一份船心 `Vector3(0, 1.5, -1.3)`** 来推敌人速度 —— 和 Turret
+## 当年修的是同一个病（船心坐标在代码里存了多份，改 JSON 时这里不跟着变），
+## 而且推出的方向只对直线飞行成立，绕飞 / 撤离会算偏。改读采样真值后，
+## marker 与炮塔的提前量**吃的是同一个数**，不会再出现「marker 准、弹道偏」。
 func _update_lead_marker(_delta: float) -> void:
 	if _lead_marker == null:
 		return
@@ -1330,12 +1369,8 @@ func _update_lead_marker(_delta: float) -> void:
 	if target == null:
 		_lead_marker.visible = false
 		return
-	var v_e: Vector3 = Vector3.ZERO
-	if not target.is_hovering():
-		var center := Vector3(0, 1.5, -1.3)
-		v_e = (center - target.global_position).normalized() * target.speed
 	var intercept := LeadPrediction.intercept_point(t.muzzle_pos, target.global_position,
-		v_e, t.projectile_speed)
+		target.velocity(), t.projectile_speed)
 	if intercept.length_squared() < 1e-6:
 		_lead_marker.visible = false
 		return

@@ -6,7 +6,9 @@ class_name TurretSystem
 ## **职责**：
 ##   ① _ready 时建所有炮塔（Round 1：1 主炮；Round 2：+ 4 副炮）
 ##   ② _physics_process 推进每个 turret.advance(delta) + 收尾 Projectile
-##   ③ 接管路由：玩家按 1-5 或点 feed → 目标 turret 切 MANUAL（切相机在 bridge_whitebox）
+##   ③ 输入路由（**看/打分离**，DEC-048）：数字键 1-5 或点 feed → **切视角**（不动炮塔模式）；
+##      鼠标右键 → **接管**当前所看的那门（切 MANUAL）；
+##      两者都不搬相机 —— 相机由 bridge_whitebox 订阅 turret_view_changed 执行。
 ##   ④ 监听 GameState：BATTLE 进入时 enable auto，REFIT 进入时 disable
 ##   ⑤ 炮塔耐久：每波开战回满、被毁后踢出接管、扇区失守与全毁广播
 ##   ⑦ 换装：把某槽位的炮整体换成另一种型号（数值 + 外观）
@@ -93,8 +95,18 @@ const SYSTEM_GROUP := &"turret_system"
 ## 主炮固定不可换（DEC-030：主炮固定正面）。改装 UI 据此过滤槽位。
 const MAIN_ID := &"main"
 
-## 当前被接管的炮塔 id（&"" 表示未接管）。供 bridge_whitebox 读，决定 ESC 行为。
+## 当前被接管的炮塔 id（&"" 表示未接管）—— 也就是"玩家正在自己打哪一门"。
+## 供 bridge_whitebox 读：决定左键/空格的扳机打给谁，以及 ESC 的第一级行为。
 var current_manual_id: StringName = &""
+
+## 当前**视角**所在的炮塔 id（&"" 表示视角在主控室）—— 也就是"玩家正在看哪一门"。
+##
+## **为什么与 current_manual_id 分开**（2026-09-11 · DEC-048）：
+## 原设计里「切过去看」与「接过来打」是同一个动作（按 2-5 立刻进 MANUAL），
+## 代价是一按数字键就被动变成"这门炮归我负责"—— 玩家多数时候只是想看一眼那一路，
+## 却被迫进入要按扳机的高压状态。现在拆成两步：`focus_*` 只搬视角（炮塔照常 AUTO 开火），
+## `takeover*` 才给开火权。两个状态各问各的问题，互不代替。
+var current_view_id: StringName = &""
 
 
 ## 由 Turret 发射后调用：把弹丸纳入本系统的统一推进。
@@ -348,7 +360,7 @@ func _ready() -> void:
 	EventBus.crisis_cleared.connect(_on_crisis_cleared)
 	if DEBUG_LOG:
 		print("[turret] 系统就绪，已建 %d 门炮塔: %s" % [_turrets.size(), str(_turrets.keys())])
-		print("[turret] 默认模式: 所有炮塔 AUTO（按 1-5 接管任一门进手动）")
+		print("[turret] 默认模式: 所有炮塔 AUTO（按 1-5 切视角看炮位，鼠标右键接手自己打）")
 		for id in _turrets:
 			var t := _turrets[id] as Turret
 			if t == null:
@@ -505,22 +517,81 @@ func advance_all(delta: float) -> void:
 			_projectiles.remove_at(i)
 
 
-## 接管入口（按 1-5 / 点 feed 都调这里）。
-##   target_id = 炮塔 id：&"main" / &"port" / &"starboard" / &"dorsal" / &"ventral"
-##   若 == &"" 则退接管回主控室。
-##   若当前已在接管某门炮，再按同一 id = 退接管（toggle 行为）。
+# ── 视角（看）vs 接管（打）—— 2026-09-11 · DEC-048 ──────────────────────
+#
+# 两条通道**分开**：
+#   · focus / focus_sector  → 只搬视角（`turret_view_changed`）。炮塔保持 AUTO 自动开火。
+#   · takeover / takeover_focused → 给开火权（`turret_takeover_started`），炮塔切 MANUAL。
+# 数字键 1-5 走前者，鼠标右键走后者（由 bridge_whitebox 转调）。
+
+## 主视角搬到某个炮位的**舰外视角**，**不接管**。
+##
+##   turret_id == &"" → 回主控室（视角归位，**任何炮塔的模式都不动**）。
+##   主炮（fore）是特例：它没有"舰外视角"（玩家在主控室透过艏部舷窗看正面就是它的视角），
+##   搬移决策留给 bridge_whitebox —— 本类只管"当前在看谁"这个状态。
+##
+## **看别处会自动释放手动**：手动控制的前提是"你人在那个炮位上"，
+## 视角都挪走了还留在 MANUAL，会得到一个「人在主控室、炮塔还等着你按扳机」的错觉
+## （更糟的是炮塔不再自动开火，等于白白掉一门火力）。
+func focus(turret_id: StringName) -> void:
+	if current_manual_id != &"" and current_manual_id != turret_id:
+		_release()
+	if current_view_id == turret_id:
+		return
+	current_view_id = turret_id
+	EventBus.turret_view_changed.emit(turret_id)
+	if DEBUG_LOG:
+		print("[turret] 视角 -> %s" % ("主控室" if turret_id == &"" else turret_id))
+
+
+## ⑧ 按**路 feed**（扇区）循环切换视角：在该路已装的炮位之间轮转，转完一圈回主控室。
+##
+## **为什么是"按路循环"而不是"一键一门炮"**（李 2026-09-09 定的交互，2026-09-11 改为切视角）：
+##   每路可以装两门炮之后，8 个炮位若各占一个数字键，键位要从 5 个涨到 9 个，
+##   而且「2-5 = 监控面板上 4 块屏」这个已有肌肉记忆会被打乱。
+##   所以键位仍是 1-5，同路两门炮在"再按一次"里选 ——
+##   比"先记住 8 个键再决定按哪个"省脑子，符合本作低 APM 的初衷。
+##
+## 只循环「已解锁 + 已装炮 + 未被毁」的槽位（见 slots_of_sector）：
+## 空槽位与死炮不占循环位，否则会出现「按了键但画面没动」的假故障。
+## ESC 随时可直接回主控室，不依赖转完一圈。
+func focus_sector(sector: StringName) -> void:
+	var ids := slots_of_sector(sector)
+	if ids.is_empty():
+		if DEBUG_LOG:
+			print("[turret] 视角切到 %s 路失败：该路无可用炮塔" % sector)
+		return
+	if current_view_id == &"":
+		focus(ids[0])
+		return
+	var i := ids.find(current_view_id)
+	if i < 0:
+		focus(ids[0])           # 当前看的不在这一路 → 切过来，从第一门开始
+		return
+	if i + 1 < ids.size():
+		focus(ids[i + 1])       # 同路下一门
+		return
+	focus(&"")                  # 转完一圈 → 回主控室
+
+
+## 接管指定炮塔（= 拿到开火权，炮塔切 MANUAL）。
+##   target_id == &"" → 释放接管（等价于直接调下面那个 release()）。
+##   已接管同一门再调 = 释放（toggle，保留旧行为，测试与外部直调都靠它）。
 ##   同时只支持 1 门 MANUAL（bible DEC-030）。
+##
+## **会把视角对齐到这门炮**：接管意味着"你人就在那儿"，镜头必须跟着走 ——
+## 否则右键在主控室接管主炮时会出现「炮归我了，但视角还对着主控室」的分裂状态。
 func takeover(target_id: StringName) -> void:
 	if target_id == &"":
-		_release()
+		release()
 		return
 	# toggle
 	if current_manual_id == target_id:
-		_release()
+		release()
 		return
 	# 若已在接管另一门，先释放再接管
 	if current_manual_id != &"":
-		_release()
+		release()
 	if not _turrets.has(target_id):
 		if DEBUG_LOG:
 			print("[turret] 接管 %s 失败：未注册（已注册 %s）" % [target_id, str(_turrets.keys())])
@@ -531,6 +602,10 @@ func takeover(target_id: StringName) -> void:
 		if DEBUG_LOG:
 			print("[turret] 接管 %s 失败：已被毁" % target_id)
 		return
+	# 先对齐视角（可能触发相机搬移），再切模式 + 广播接管。
+	if current_view_id != target_id:
+		current_view_id = target_id
+		EventBus.turret_view_changed.emit(target_id)
 	t.set_mode(Turret.Mode.MANUAL)
 	current_manual_id = target_id
 	EventBus.turret_takeover_started.emit(target_id)
@@ -538,38 +613,37 @@ func takeover(target_id: StringName) -> void:
 		print("[turret] 接管 -> %s（手动模式）" % target_id)
 
 
-## ⑧ 接管某一**路 feed**（扇区）：在该路已装的炮位之间**循环切换**。
+## 鼠标右键入口（2026-09-11 · DEC-048）：接管/释放**当前正在看的那门**炮。
 ##
-## **为什么是"按路循环"而不是"一键一门炮"**（李 2026-09-09 定的交互）：
-##   每路可以装两门炮之后，8 个炮位若各占一个数字键，键位要从 5 个涨到 9 个，
-##   而且「2-5 = 监控面板上 4 块屏」这个已有肌肉记忆会被打乱。
-##   改成按路接管：首按进该路第一门，**再按同一个键切到该路下一门**，
-##   **转完一圈则释放**（回主控室）。键位仍是 1-5，同路两门炮在"再按一次"里选 ——
-##   比"先记住 8 个键再决定按哪个"省脑子，符合本作低 APM 的初衷。
-##
-## 只循环「已解锁 + 已装炮 + 未被毁」的槽位（见 slots_of_sector）：
-## 空槽位与死炮不占循环位，否则会出现「按了键但相机没动」的假故障。
-## ESC 随时可直接退出接管，不依赖转完一圈。
-func takeover_sector(sector: StringName) -> void:
-	var ids := slots_of_sector(sector)
-	if ids.is_empty():
-		if DEBUG_LOG:
-			print("[turret] 接管 %s 路失败：该路无可用炮塔" % sector)
+##   · 已在手动 → 右键 = 释放（回自动；**视角留在原地**，方便再看一会儿）
+##   · 没在看任何炮位（视角在主控室）→ 默认接管**主炮**：玩家在主控室本来就正对艏部舷窗，
+##     主炮是唯一"抬眼就在那儿"的火力，再逼他按一次 1 键纯属多一步（DEC-026/030 的语境）。
+##   · 否则 → 接管当前所看的那门。
+func takeover_focused() -> void:
+	if current_manual_id != &"":
+		release()
 		return
-	if current_manual_id == &"":
-		takeover(ids[0])
-		return
-	var i := ids.find(current_manual_id)
-	if i < 0:
-		takeover(ids[0])        # 当前接管的不在这一路 → 切过来，从第一门开始
-		return
-	if i + 1 < ids.size():
-		takeover(ids[i + 1])    # 同路下一门
-		return
-	_release()                  # 转完一圈 → 回主控室
+	var target := current_view_id
+	if target == &"":
+		target = &"main"
+	takeover(target)
 
 
-## 释放当前接管：回主控室 + 目标 turret 切回 AUTO。
+## 释放当前接管：目标炮塔切回 AUTO，视角**不动**（还留在那门炮的外视角）。
+## 独立成公开方法（而不是让调用方写 `takeover(&"")`）：调用点读起来是"释放"这件事本身。
+func release() -> void:
+	_release()
+
+
+## 收场用：释放接管 + 视角回主控室。
+## 过场（⑦ 维修站）开始前必须调 —— 否则会留下「镜头已被改装的过场搬走、焦点却还挂在
+## 某个炮位上」的分裂状态，下次按右键会接管一门玩家根本没在看的炮。
+func clear_focus() -> void:
+	_release()
+	focus(&"")
+
+
+## 释放当前接管：目标 turret 切回 AUTO。
 func _release() -> void:
 	if current_manual_id == &"":
 		return
@@ -580,7 +654,7 @@ func _release() -> void:
 	current_manual_id = &""
 	EventBus.turret_takeover_ended.emit(prev)
 	if DEBUG_LOG:
-		print("[turret] 释放接管 <- %s（回主控室）" % prev)
+		print("[turret] 释放接管 <- %s（回自动）" % prev)
 
 
 ## BATTLE 进入 / 退出时调。开战 = 新一波开始 → 先回满耐久，再启用自动开火。
@@ -799,20 +873,23 @@ func _sector_has_alive(sector: StringName) -> bool:
 	return false
 
 
-## 接管入口辅助：把 EventBus.monitor_feed_clicked 转成 takeover。
-## 由 bridge_whitebox.gd 在 _ready 里 connect：signal → takeover_by_feed。
+## 视角入口辅助：把 EventBus.monitor_feed_clicked 转成 focus。
+## 由 bridge_whitebox.gd 在 _ready 里 connect：signal → focus_by_feed。
+##
+## **点 feed = 切去看那一路**（不是接管）—— 与数字键 2-5 走同一条路，
+## 保持"点屏"和"按键"是同一个动作的两种输入方式（DEC-048 起两者都只切视角）。
 ##
 ## 4 路 feed 各对应一门副炮，且**炮塔 id == 扇区名**（见 _load_and_build_turrets ②），
 ## 所以这里直接把 sector 当 id 用。fore 没有副炮（主炮固定正面，DEC-030），
-## 所以 fore 的点击落到主炮接管。
-func takeover_by_feed(sector: StringName) -> void:
+## 所以 fore 落到主炮的视角（= 留在主控室）。
+func focus_by_feed(sector: StringName) -> void:
 	if sector == &"fore":
-		takeover(&"main")
+		focus(&"main")
 		return
-	# ⑧ 按路接管：**同一路可能有两门炮**，交给 takeover_sector 在该路内循环。
-	# 这里不再自己判断有没有炮 —— 「该路有哪些能接管的炮位」是 TurretSystem 的知识，
+	# ⑧ 按路循环：**同一路可能有两门炮**，交给 focus_sector 在该路内轮转。
+	# 这里不再自己判断有没有炮 —— 「该路有哪些可用炮位」是 TurretSystem 的知识，
 	# 输入层不该替它做这个判断（否则解锁第二炮位后还要回来改这里）。
-	takeover_sector(sector)
+	focus_sector(sector)
 
 
 # ── ⑧ 解锁（DEC-033 无货币 · DEC-042 节奏）────────────────────────────
