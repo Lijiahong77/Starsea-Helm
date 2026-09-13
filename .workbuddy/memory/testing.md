@@ -20,7 +20,7 @@
 | `scripts/tests/uv_probe.gd` | headless dump 任意 Mesh 的 UV，查贴图错位 |
 | `scripts/tests/cam_probe.gd` | **读 presentation.json** 算 4 路 feed 相机挂载点 + Transform3D，打印成 `.tscn` 可粘贴（与运行时同源） |
 | `scripts/tests/font_probe.gd` | **字体 / 排版探针**（SceneTree 型，可 headless）：TextServer 接口 / 内嵌字体身份 / **shaping 逐 glyph 判定**（`index==0` 豆腐、`font_rid` 外来 = 系统兜底）/ 数字等宽推进宽 |
-| ③ `enemy_test` | 生成 / 移动 / 扇区归属 / 攻击最近炮塔 |
+| ③ `enemy_test` | 生成 / 移动（hold） / 扇区归属 / 攻击最近炮塔 / **飞行方式注入（DEC-049）** / **进场段速度采样** / **orbit 半径守恒+切向** / **strike_retreat 来回进出** / **各型号数值不串** |
 | ④ `turret_round2` | 4 副炮接入：独立开火 / 炮位推导 / 端到端击杀 |
 | ⑤ `turret_hp_test` | 伤害路由 / 被毁停火 / 全毁事件 / 死炮不可接管 / 开战回满 |
 | ⑦ `refit_test` | 阶段机走位 / 换装真生效 / 隐形跳过 / 主炮不可换 / 未知型号拒绝 |
@@ -44,7 +44,7 @@ G="C:/Users/lijia/Desktop/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64_co
 # 单跑
 /usr/bin/timeout 150 "$G" --headless --path . res://scenes/tests/feel_test.tscn 2>&1 | grep -E "断言:|结果：" | head -1
 
-# 整套（11 套 / 408 断言。**别漏 healthbar 与 enemy** —— 9/10 曾漏，见下坑 5）
+# 整套（11 套 / 446 断言 —— 断言数每个 DEC 都会涨，别照抄旧数；**别漏 healthbar 与 enemy** —— 9/10 曾漏，见下坑 5）
 for s in feel_test audio_test healthbar_test turret_round2 turret_hp_test \
          enemy_test wave_test refit_test unlock_test damage_test collapse_test; do
   printf "%-16s " "$s"
@@ -69,4 +69,14 @@ done
    同理退出时那句 `N ObjectDB instances were leaked at exit` 是 **`quit()` 早于清理**的常态（每个探针都有），不是泄漏 bug。
 5. **汇总断言数要按两种格式分别抓**：`grep -oE '[0-9]+/[0-9]+'` 只能匹配「断言: n/m」那 7 套，
    `turret_round2 / turret_hp / enemy / wave` 打的是「结果：通过 n」，会被**静默漏掉 91 条**
-   （9/10 实测汇总出 317，真值是 **408 / 11 套**）。要点：**0 命中和漏抓长得一样**，报数前先核对套数。
+   （9/10 实测汇总出 317，当时真值 408；**2026-09-11 = 446**。这个数随每次改动涨，
+   它的用途是「核对套数与量级」，**不是背一个定值**）。要点：**0 命中和漏抓长得一样**，报数前先核对套数。
+6. **护栏有效性也要实测**（2026-09-11，DEC-049 新增惯例）：写完「输入非法 → 有告警 + 有兜底」这类护栏后，
+   **故意把数据改错跑一次**，确认 ① 告警真的打出来、② 兜底真的生效、③ 相关断言真的变红。
+   理由：一条永远为真的断言不是护栏（比如「读配置」写成两边都从同一个兜底表取值，改错数据也照样绿）。
+   验完记得恢复数据并复跑。
+7. **被测行为一变，先问「这个用例的前提还在不在」**（2026-09-11，DEC-049 踩到）：
+   敌人改成会飞之后，`turret_hp_probe` 的「只有 1 门炮在挨打」前提就没了（最近炮塔会漂移）。
+   正确做法不是**改断言**（那是把护栏掰弯），也不是**改成绕飞**（那会让失败原因变得不可判），
+   而是**把不相关的变量钉死** —— `spawn_one(..., &"hold")`（`flight_override` 只给测试用）。
+   判断准则：一个用例里**同时动两个变量**，红了就没人知道是谁的错。

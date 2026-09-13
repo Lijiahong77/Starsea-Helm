@@ -195,7 +195,7 @@ func _test_crisis_6(ts: TurretSystem) -> void:
 	_check("广播的槽位数 = 8（实测 %d）" % _last_slot_count, _last_slot_count == 8)
 
 
-# ---------------------------------------------------------------- 按路循环接管
+# ---------------------------------------------------------------- 按路循环视角（DEC-048）
 
 func _test_sector_cycle(ts: TurretSystem) -> void:
 	# port 路此时装了两门（port=gatling / port2=lance），应能在两门之间循环
@@ -208,23 +208,41 @@ func _test_sector_cycle(ts: TurretSystem) -> void:
 	_check("dorsal 路只有 1 个可接管炮位（空槽不参与循环，实测 %d）" % d_ids.size(),
 		d_ids.size() == 1)
 
-	ts.takeover_sector(&"port")
-	_check("首按接管路内第一门 = port（实测 %s）" % ts.current_manual_id,
-		ts.current_manual_id == &"port")
-	ts.takeover_sector(&"port")
-	_check("再按同键切到该路第二门 = port2（实测 %s）" % ts.current_manual_id,
-		ts.current_manual_id == &"port2")
-	ts.takeover_sector(&"port")
-	_check("转完一圈 → 释放接管回主控室（实测 %s）" % ts.current_manual_id,
+	ts.focus_sector(&"port")
+	_check("首按切到路内第一门视角 = port（实测 %s）" % ts.current_view_id,
+		ts.current_view_id == &"port")
+	# ⭐ DEC-048 的核心断言：**切视角不接管**，炮塔保持自动开火。
+	_check("切视角**不**接管（current_manual_id=%s）" % ts.current_manual_id,
 		ts.current_manual_id == &"")
+	ts.focus_sector(&"port")
+	_check("再按同键切到该路第二门 = port2（实测 %s）" % ts.current_view_id,
+		ts.current_view_id == &"port2")
+	ts.focus_sector(&"port")
+	_check("转完一圈 → 回主控室（实测 %s）" % ts.current_view_id,
+		ts.current_view_id == &"")
 	# 切到别路：从那一路的第一门重新开始
-	ts.takeover_sector(&"port")
-	ts.takeover_sector(&"dorsal")
-	_check("从 port2 切到 dorsal 路 → 接管 dorsal（实测 %s）" % ts.current_manual_id,
+	ts.focus_sector(&"port")
+	ts.focus_sector(&"dorsal")
+	_check("从 port2 切到 dorsal 路 → 视角到 dorsal（实测 %s）" % ts.current_view_id,
+		ts.current_view_id == &"dorsal")
+	# 鼠标右键入口：接管/释放**当前所看的那门**
+	ts.takeover_focused()
+	_check("takeover_focused → 接管当前所看的 dorsal（实测 %s）" % ts.current_manual_id,
 		ts.current_manual_id == &"dorsal")
-	ts.takeover(&"")   # 收尾：释放，别把接管状态带进过场
-	_check("takeover(&\"\") 释放接管（实测 %s）" % ts.current_manual_id,
+	ts.takeover_focused()
+	_check("再按一次 → 释放接管回自动（实测 %s）" % ts.current_manual_id,
 		ts.current_manual_id == &"")
+	# 收尾：交回主控室，别把视角状态带进过场（过场会搬镜头，焦点错位会串味）
+	ts.clear_focus()
+	_check("clear_focus() 后视角与接管都归零（view=%s manual=%s）" % [
+			ts.current_view_id, ts.current_manual_id],
+		ts.current_view_id == &"" and ts.current_manual_id == &"")
+	# 切视角会自动释放接管（手动的前提是"你人在那个炮位上"）
+	ts.takeover(&"port")
+	ts.focus_sector(&"dorsal")
+	_check("看别处会自动释放手动（manual=%s）" % ts.current_manual_id,
+		ts.current_manual_id == &"")
+	ts.clear_focus()
 
 
 # ---------------------------------------------------------------- ⑥ 过场集成

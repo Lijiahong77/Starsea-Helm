@@ -47,15 +47,15 @@ ShipSystem      TurretSystem           EnemySystem
 | 模块 | 职责 | 输入 | 输出 | 优先级 |
 |------|------|------|------|--------|
 | **ShipSystem** | 飞船全局状态：炮塔引用与状态、槽位、已解锁炮塔类型池、当前装配方案、累计危机进度 | 模块配置、伤害事件 | 飞船状态、结算事件 | P0 |
-| **TurretSystem** | **所有炮塔**的开火与接管，统一**双模**：自动 = 间歇发射弹丸（副炮约 3 s 一枪）+ 系统自动锁敌 + **系统自动算提前量**；手动 = 玩家自己瞄、按扳机发射。主炮固定正面（弹丸慢 150–250 m/s，玩家接管时**自己**算提前量）；副炮×4 向（自动锁敌，系统代算提前量）。炮塔耐久、被毁、每波满血复位 | 接管指令、开火输入、敌人数据、模块属性 | 伤害事件、炮塔状态、陷落事件 | P0 |
+| **TurretSystem** | **所有炮塔**的开火与接管，统一**双模**：自动 = 间歇发射弹丸（副炮约 3 s 一枪）+ 系统自动锁敌（锁 `is_engaged()` 的敌人，**不是"悬停"的**）+ **系统自动算提前量**（DEC-049：读 `Enemy.velocity()`，敌人会绕飞/巡航后这是必需的）；手动 = 玩家自己瞄、按扳机发射。主炮固定正面（弹丸慢 150–250 m/s，玩家接管时**自己**算提前量）；副炮×4 向（自动锁敌，系统代算提前量）。炮塔耐久、被毁、每波满血复位 | 接管指令、开火输入、敌人数据、模块属性 | 伤害事件、炮塔状态、陷落事件 | P0 |
 | **DamageLog** | ⑨a 战损记录（**挂 TurretSystem 下的子节点**）：按「本波」累计每门炮承伤、**伤害来源按敌人类型分解**、被毁标记、扇区汇总。**四个出口（HUD / 维修站 / 维修师台词 / 改装台）共用这一份数据**（DEC-043） | `turret_damaged` / `turret_destroyed` | 战损查询 | P1 |
 | **CollapseSequence** | ⑨b 陷落演出编排器（**挂 bridge 下的子节点**）：L1 单炮计数标记 / L2 整路红叉 / L3 夺操控 + 拉远环绕镜头 + 宣告 → RESULT。**只做编排**，爆炸归 ⑪、警报归 ⑩；表现层对节点缺失容错（headless 可测纯逻辑） | `turret_destroyed` / `sector_breached` / `all_turrets_destroyed` | 屏幕标记、终局镜头、RESULT 转移 | P1 |
-| **GameFeel** | ⑪ 相机手感编排器（**挂 bridge 下的子节点**）：震屏（③）+ 推镜（④），按 `feel.events` 的**事件→强度表**分发。**只写 `Camera3D.position`（局部偏移）与 `fov`** —— `Player.position` 归 bridge、材质归实体，三方零重叠。L3 期间靠兄弟节点 `is_locked()` 自我静音。**空转不跑 `_process`** | `turret_fired` / `enemy_killed` / `turret_damaged` / `turret_destroyed` / `sector_breached` / `game_state_changed` | 相机偏移、视场角 | P1 ✅ 第一层（DEC-047） |
+| **GameFeel** | ⑪ 相机手感编排器（**挂 bridge 下的子节点**）：震屏（③）+ 推镜（④），按 `feel.events` 的**事件→强度表**分发。**只写 `Camera3D.position`（局部偏移）与 `fov`** —— `Player.position` 归 bridge、材质归实体，三方零重叠。L3 期间靠兄弟节点 `is_locked()` 自我静音。**空转不跑 `_process`**。⚠ 震屏只给「玩家动作 / 大事件 / **临界警报**」，**不给持续受击**（DEC-048） | `turret_fired` / `enemy_killed` / `turret_critical` / `turret_destroyed` / `sector_breached` / `game_state_changed` | 相机偏移、视场角 | P1 ✅ 第一层（DEC-047/048） |
 | **FeelKit** | ⑪ 手感参数的**只读访问器**（非模块，`utils/` 静态类）：从 `presentation.json` 的 `feel` 段取值并缓存，供系统层与实体层共读。**刻意不做成 autoload**（少一个就少一个顺序坑） | —— | 旋钮值 | P1 ✅（DEC-047） |
-| **EnemySystem** | 敌人生成、移动、扇区归属、攻击**最近炮塔**耐久 | 波次配置 | 敌人实体、攻击伤害事件、死亡事件 | P0 |
+| **EnemySystem** | 敌人生成、**按 `flight_<type>` 字段分发飞行方式**（`hold` / `orbit` / `strike_retreat`）、扇区归属、攻击**最近炮塔**耐久。数值按 `type_id` **逐字段**从 `enemies.json` 读（缺键 / 值写错 → warn 一次后兜底，DEC-049） | 波次配置 | 敌人实体、攻击伤害事件、死亡事件 | P0 ✅（DEC-049：结构 + 绕飞/巡航均已落地） |
 | **WaveSystem** | 波次调度、难度曲线、六扇区来袭分布（`aft` 基本不含） | 波次数、配置表 | 波次事件、危机清空事件 | P0 |
-| **MonitorSystem** | **主控室常驻 4 路副炮实时画面（SubViewport feed，低清低帧）+ 接管时主相机切到该副炮**；可选 2D 雷达总览。feed 平面**可点击**发起接管 | 玩家操作、敌人数据、炮塔状态 | 4 路 feed 画面、扇区压力呈现、feed 点击事件 | P0 |
-| **PlayerController** | 第一人称视角；**接管**某炮塔切手动（**双输入**：点控制台 feed 平面，**或**按数字键 1–5；**ESC 回主控室**）；手动模式下按鼠标左键开火。**同时只接管一门** | 鼠标键盘输入 | 视角切换事件、接管指令、开火输入（不直接操作武器） | P0 |
+| **MonitorSystem** | **主控室常驻 4 路副炮实时画面（SubViewport feed，低清低帧）+ 切视角时主相机搬到该副炮**；可选 2D 雷达总览。feed 平面**可点击切视角**（= 数字键 2-5 的第二输入方式） | 玩家操作、敌人数据、炮塔状态 | 4 路 feed 画面、扇区压力呈现、feed 点击事件 | P0 |
+| **PlayerController** | 第一人称视角；**「看」与「打」分离**（DEC-048）：数字键 1–5 / 点 feed = **切视角**（炮塔保持 AUTO 自动开火），**鼠标右键 = 接管/释放**（切 MANUAL，开始自己打）；手动模式下按鼠标左键开火；**ESC 三级**（释放接管 → 回主控室 → 切鼠标模式）。**同时只接管一门** | 鼠标键盘输入 | 视角切换事件（`turret_view_changed`）、接管指令、开火输入（不直接操作武器） | P0 |
 | **RefitSystem** | 改装流程：换炮塔类型 / 扩展槽位 / 预判下一波；自动解锁由危机进度驱动 | 已解锁类型池、玩家操作 | 飞船配置变更、进入战斗 | P0 |
 | **UISystem** | HUD、监控 UI、改装界面、结算界面 | 玩家操作、飞船状态 | 界面交互、配置变更 | P0 |
 | **VFXSystem** | 射击、爆炸、命中反馈、屏幕特效 | 射击 / 伤害事件 | 视觉特效 | P1 🟡（**DEC-043 归入 ⑪**）：**命中闪白已落地**（②，见 `game_feel.gd` + 实体自己；DEC-047），炮口火光 / 命中火花 / 爆炸粒子待做 |
@@ -75,10 +75,12 @@ ShipSystem      TurretSystem           EnemySystem
 
 # ── 飞船 / 炮塔 ──────────────────────────
 signal turret_damaged(turret_id: StringName, amount: float, source_id: StringName)   # ⑨a 加 source_id（2026-09-10）
+signal turret_critical(turret_id: StringName, sector: StringName)                    # ⑪③ 耐久首次跌破 feel.critical_ratio（DEC-048）
 signal turret_destroyed(turret_id: StringName, sector: StringName)
 signal all_turrets_destroyed()                 # → GameStateManager 进入 RESULT
 signal turret_takeover_started(turret_id: StringName)
 signal turret_takeover_ended(turret_id: StringName)
+signal turret_view_changed(turret_id: StringName)    # 主视角切到某炮位（**不接管**，DEC-048）；&"" = 回主控室
 signal sector_pressure_changed(sector: StringName, pressure: float)
 signal sector_breached(sector: StringName)     # 该扇区所有炮塔被毁
 
@@ -97,8 +99,7 @@ signal turret_unequipped(turret_id: StringName, slot: int)
 signal slot_count_changed(new_count: int)
 
 # ── 监控 / 接管输入 ──────────────────────
-signal monitor_feed_clicked(sector: StringName)    # 玩家点了控制台上某路 feed（原始输入）
-signal monitor_view_changed(target: StringName)    # 主相机切到某副炮视角 / 回主控室
+signal monitor_feed_clicked(sector: StringName)    # 玩家点了控制台上某路 feed（原始输入）→ 切视角
 signal turret_fired(turret_id: StringName)         # 手动模式下玩家按扳机发射
 
 # ── 流程 ────────────────────────────────
@@ -108,26 +109,33 @@ signal game_state_changed(new_state: StringName)
 **规则**：
 - 事件只描述「发生了什么」，不描述「该做什么」
 - 一个事件可被多个系统订阅（**DEC-043 扇出蓝图**，陷落三级分层；⑨b/⑩/⑪ 已分别由 `CollapseSequence` / `AudioManager` / `GameFeel` 落地）：
-  - `turret_damaged` → **DamageLog** 累计（战损数据汇总，**供 ①/②/③/④ 四出口消费**）/ **GameFeel** 轻震 + 实体自身闪白
+  - `turret_damaged` → **DamageLog** 累计（战损数据汇总，**供 ①/②/③/④ 四出口消费**）。
+    ⚠ **它不给任何反馈**（DEC-048）：每物理帧都在发，接上震屏/音效就是持续噪音。它是**记账流水**不是反馈。
+  - `turret_critical`（⑪③，DEC-048）→ **GameFeel** 重震一次 / **AudioManager** 临界警报（按扇区变调）。
+    **每门炮每波最多一次**（耐久首次跌破 `presentation.json` 的 `feel.critical_ratio`）。
   - `turret_destroyed`（L1）→ **CollapseSequence** 屏幕「存活/已装」计数标记 + 黄染色脉冲 / **AudioManager** 单炮被毁音（按扇区变调）/ **GameFeel** 重震 / VFXSystem 爆炸（⑪ 待做）/ DamageLog 记毁
   - `sector_breached`（L2）→ **CollapseSequence** 屏幕整路红 + 红叉 / **AudioManager** 失守警报 / **GameFeel** 重震 / DamageLog 标该面失守
   - `all_turrets_destroyed`（L3）→ **CollapseSequence** 夺操控 + 拉远环绕镜头 + 宣告 → RESULT / **AudioManager** 终局音（**GameFeel 此时让位**）
+  - `turret_view_changed`（DEC-048）→ **bridge_whitebox** 搬主视角（`Player` 位置 + 朝向）。**只搬镜头，不改炮塔模式**
   - `turret_fired`（玩家按键）→ **GameFeel** 推镜 + 轻震 / **AudioManager** 开火音
   - `wave_started` / `crisis_cleared` / `enemy_killed` / `turret_equipped` → **AudioManager** 对应警报与装配音（`enemy_killed` 同时给 GameFeel 轻震）
 - **禁止**在 EventBus 里写任何业务判断
 
-**手感的接入口**（**DEC-047**）：`GameFeel` 订阅上表里的 5 个**低频**事件；
+**手感的接入口**（**DEC-047 / DEC-048**）：`GameFeel` 订阅上表里的 5 个**低频**事件
+（`player_fire` / `enemy_killed` / `turret_critical` / `turret_destroyed` / `sector_breached`）；
 闪白**不走事件总线** —— 材质属于实体自己，`Enemy.take_damage` / `Turret.take_damage` 直接就地改自己的材质，
 两者共用 `FeelKit` 读同一组旋钮。强度按 `presentation.json` 的 `feel.events` 事件→强度表分发，
 **改手感只改 JSON、不碰业务脚本**。
 
 **音频的接入口边界**（**DEC-046 决定 2**，是对上面第 1 条原则的明确例外，别当成违规）：
-- **低频事件**（`turret_destroyed` / `sector_breached` / `all_turrets_destroyed` / `enemy_killed` /
-  `wave_started` / `crisis_cleared` / `turret_equipped`）→ `AudioManager` 自行订阅。
+- **低频事件**（`turret_critical` / `turret_destroyed` / `sector_breached` / `all_turrets_destroyed` /
+  `enemy_killed` / `wave_started` / `crisis_cleared` / `turret_equipped`）→ `AudioManager` 自行订阅。
   **接线目标是 `data/audio.json` 的 `events` 段**，换警报音只改 JSON、不碰业务脚本。
-- **高频音**（开火 / 弹丸命中 / 炮塔持续受创，每帧级）→ 业务代码**直接调** `AudioManager.play_sfx()`。
+- **高频音**（开火 / 弹丸命中，每帧级）→ 业务代码**直接调** `AudioManager.play_sfx()`。
   理由：每帧 emit 会刷爆总线，而 EventBus 的语义是「状态翻转」不是「连续量」；
   且调的是 **autoload 服务**，不是跨模块调业务逻辑。
+  ⚠ **"炮塔受创"不属于这一类**（2026-09-11 修正）：它曾经是每帧直调，结果是"一路被啃一路响"，
+  已改走 `turret_critical` 低频事件（见上）。**判据不是"高频/低频"字面，而是"这个量是否每帧都在变"**。
 
 > ⚠ `EventBus.gd` 里逐 signal 的 `@warning_ignore("unused_signal")`：**该 signal 一旦有了订阅方即可删掉那行**（⑩ 已实测确认，删掉不产生告警）。⑩ 清理了 9 行陈旧的 ignore。
 

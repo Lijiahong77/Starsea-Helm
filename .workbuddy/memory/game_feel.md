@@ -12,6 +12,7 @@
 | 推镜两段时长 | `feel.zoom_in_time` / `zoom_out_time` | 代码 |
 | 闪白时长 / 颜色 | `feel.flash_time` / `flash_color` | 代码 |
 | **哪个事件给多强的反馈** | `feel.events`（`shake` 单位 m、`zoom` 单位度） | 代码 |
+| **炮塔临界警报的触发阈值** | `feel.critical_ratio`（0.3 = 跌破三成才警；0 = 关闭） | 代码 |
 | 全局静音总闸 | `feel.master_scale`（0 = 全静默，排查用） | 代码 |
 | 震屏/推镜算法与状态机 | `scripts/systems/game_feel.gd` | JSON |
 | 闪白状态机 | `enemy.gd` / `turret.gd` 的 `_hit_flash` / `_tick_flash` | JSON |

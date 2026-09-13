@@ -7,6 +7,7 @@
 
 ## 0. 一句话
 
+- **来源**：`2026-09-10.md` 的 ⑨a / ⑨b 两段（09-11 已把日志蒸馏掉，全文见 `archive/2026-09-10_full.md`）。
 - **⑨a 战损报告** = 「一份数据、四个出口」的代码落地（DEC-043 决定 1）→ `damage_log.gd`。
 - **⑨b 陷落演出** = 只做**编排**，不是特效（DEC-045）：爆炸粒子归 ⑪VFX、警报音归 ⑩音频。
   三者订阅**同一批事件**（`turret_destroyed` / `sector_breached` / `all_turrets_destroyed`）
