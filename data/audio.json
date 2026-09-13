@@ -56,7 +56,8 @@
   },
 
   "events": {
-    "_doc": "**低频事件** → 音效的自动接线（MODULES.md §三 扇出蓝图里 AudioManager 已被列为这些事件的订阅方）。\n     高频音（开火 / 命中 / 受创）**不走这里** —— 每帧发信号会把总线刷爆，它们由业务代码直接调 play_sfx()。",
+    "_doc": "**低频事件** → 音效的自动接线（MODULES.md §三 扇出蓝图里 AudioManager 已被列为这些事件的订阅方）。\n     高频音（开火 / 命中）**不走这里** —— 每帧发信号会把总线刷爆，它们由业务代码直接调 play_sfx()。\n     ⚠ turret_damaged **不在这里**：它是每物理帧级的连续量（敌人 dps），\n     一接上就是长鸣。受创的听觉反馈走 turret_critical（每门每波一次）。",
+    "turret_critical": "sfx_turret_critical",
     "turret_destroyed": "sfx_turret_destroyed",
     "sector_breached": "sfx_sector_breached",
     "all_turrets_destroyed": "sfx_all_destroyed",
@@ -82,7 +83,8 @@
     "sfx_sub_gun_fire_fast": { "bus": "sfx", "path": "res://assets/audio/sfx_sub_gun_fire_fast.wav", "volume_db": -7.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 420.0, "dur": 0.07, "decay": 26.0, "noise": 0.40, "shape": "square" } },
     "sfx_sub_gun_fire_heavy":{ "bus": "sfx", "path": "res://assets/audio/sfx_sub_gun_fire_heavy.wav","volume_db": -3.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 120.0, "dur": 0.34, "decay": 8.0,  "noise": 0.25, "shape": "square" } },
     "sfx_projectile_hit":    { "bus": "sfx", "path": "res://assets/audio/sfx_projectile_hit.wav",    "volume_db": -6.0, "limit_ms": 50,  "max_per_window": 2, "tone": { "freq": 700.0, "dur": 0.06, "decay": 30.0, "noise": 0.50, "shape": "noise" } },
-    "sfx_turret_damaged":    { "bus": "sfx", "path": "res://assets/audio/sfx_turret_damaged.wav",    "volume_db": -8.0, "limit_ms": 250, "max_per_window": 1, "tone": { "freq": 160.0, "dur": 0.10, "decay": 18.0, "noise": 0.60, "shape": "noise" } },
+    "_doc_turret_critical": "⑪ ③ 临界警报（2026-09-11 · DEC-048）。**取代原 sfx_turret_damaged**：\n     原来那条挂在 Turret.take_damage 上、每物理帧都在播（敌人持续 dps），是「一路被啃一路响」的元凶。\n     现在只在耐久首次跌破 presentation.json 的 feel.critical_ratio 时响一次 → 每门炮每波最多一次，\n     所以 limit_ms 给 0（不需要限流；同帧去重仍生效）。",
+    "sfx_turret_critical":   { "bus": "sfx", "path": "res://assets/audio/sfx_turret_critical.wav",   "volume_db": -4.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 760.0, "dur": 0.20, "decay": 7.0,  "noise": 0.25, "shape": "square" } },
     "sfx_turret_destroyed":  { "bus": "sfx", "path": "res://assets/audio/sfx_turret_destroyed.wav",  "volume_db": -1.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 70.0,  "dur": 0.55, "decay": 5.0,  "noise": 0.70, "shape": "noise" } },
     "sfx_sector_breached":   { "bus": "sfx", "path": "res://assets/audio/sfx_sector_breached.wav",   "volume_db": -1.0, "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 320.0, "dur": 0.70, "decay": 4.0,  "noise": 0.35, "shape": "square" } },
     "sfx_all_destroyed":     { "bus": "sfx", "path": "res://assets/audio/sfx_all_destroyed.wav",     "volume_db": 0.0,  "limit_ms": 0,   "max_per_window": 1, "tone": { "freq": 55.0,  "dur": 1.20, "decay": 3.0,  "noise": 0.50, "shape": "noise" } },

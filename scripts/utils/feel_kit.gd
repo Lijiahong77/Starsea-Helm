@@ -30,6 +30,7 @@ const FALLBACK := {
 	"zoom_out_time": 0.18,
 	"flash_time": 0.08,
 	"flash_color": [2.4, 2.0, 1.8],
+	"critical_ratio": 0.3,
 	"events": {},
 }
 
@@ -88,6 +89,16 @@ static func flash_color() -> Color:
 		var a: Array = c as Array
 		return Color(float(a[0]), float(a[1]), float(a[2]))
 	return Color(2.4, 2.0, 1.8)
+
+
+## ⑪ ③ 炮塔「临界警报」阈值（耐久比例）。跌破它 → Turret 发一次 turret_critical。
+## 返回 0 表示关闭该反馈（Turret._check_critical 会直接 return）。
+##
+## **为什么这个阈值住在这里而不是 turrets.json**：它只决定「什么时候给反馈」，
+## 不参与任何规则判定（炮塔不会因为进入临界而变弱）。凡是只影响反馈的旋钮都归 feel 段，
+## 与 shake_* / flash_* 同一处 —— 调"手感"不必开三个文件（宪法第 3 条的延伸）。
+static func critical_ratio() -> float:
+	return float(cfg().get("critical_ratio", 0.3))
 
 
 ## 查某事件该给多强的反馈。

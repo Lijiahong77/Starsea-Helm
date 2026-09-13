@@ -230,8 +230,9 @@ func _make_enemy(pos: Vector3, hp: float, type_id: StringName = &"interceptor") 
 	return e
 
 
-## 造一个**已悬停**的敌人（`acquire_target()` 要求 is_hovering()）。
+## 造一个**已进入攻击距离**的敌人（`acquire_target()` 要求 `is_engaged()`）。
 ## 直接喂一个极小 delta 让 advance 跨进攻击距离即可 —— 不依赖真实帧。
+## 这里 `_make_enemy` 没传 flight → 走 Enemy 的默认 hold，所以"到了就不动"成立。
 func _make_hover_enemy(pos: Vector3, hp: float, type_id: StringName) -> Enemy:
 	var e := _make_enemy(pos, hp, type_id)
 	e.advance(0.0001)

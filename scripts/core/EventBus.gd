@@ -22,14 +22,33 @@ extends Node
 ## 回答「为什么掉的」（DEC-043）。
 ## 2026-09-10 签名从 2 参改 3 参：当时**零订阅方**，改签名零成本，已回填 MODULES.md §3。
 signal turret_damaged(turret_id: StringName, amount: float, source_id: StringName)
+## 某炮塔耐久**首次跌破临界阈值**（⑪ ③，2026-09-11 · DEC-048）。
+##
+## **为什么单独一个事件而不是复用 turret_damaged**：敌人是持续 dps，`turret_damaged`
+## 每物理帧都在发（见上）。拿它驱动震屏 / 音效 = 只要一个敌人在啃炮塔，画面就一直抖、
+## 音就一直响 —— 那是 DEC-021 明确反对的持续噪音。本事件**每门炮每波最多一次**
+## （首次跌破 `presentation.json` 的 `feel.critical_ratio` 时触发，`restore()` 复位），
+## 所以是低频量，可以安全地走总线 + 接线表（audio.json 的 events / presentation.json 的 feel.events）。
+##
+## 订阅方：GameFeel（重震一次）、AudioManager（警报音）。
+signal turret_critical(turret_id: StringName, sector: StringName)
 ## 某炮塔被摧毁。sector = 所属扇区（fore/port/starboard/dorsal/ventral/aft）。
 signal turret_destroyed(turret_id: StringName, sector: StringName)
 ## 全部炮塔被摧毁 → GameStateManager 进入 RESULT。
 signal all_turrets_destroyed()
-## 玩家开始接管某炮塔（切手动）。
+## 玩家开始接管某炮塔（切手动）。**接管 = 拿到开火权**，与「看哪一路」是两件事
+## （2026-09-11 · DEC-048 起分离）。
 signal turret_takeover_started(turret_id: StringName)
-## 玩家结束接管某炮塔（回主控室）。
+## 玩家结束接管某炮塔（回自动）。
 signal turret_takeover_ended(turret_id: StringName)
+## 主视角切到某个炮位的**舰外视角**（仅观察）；turret_id == &"" 表示回主控室。
+##
+## **与 turret_takeover_started 的分工**：本事件只管「相机搬到哪」，**不改炮塔模式** ——
+## 炮塔仍是 AUTO 自动开火。分离的理由：一按数字键就被动进入手动战斗（要为这门炮负责）
+## 会凭空造压力，而玩家多数时候只是想"看一眼那一路"。
+## 所以现在是两步：数字键 1-5 = 切视角看；鼠标右键 = 接管（开始自己打）。
+## 订阅方：bridge_whitebox（搬 Player + 朝向）。
+signal turret_view_changed(turret_id: StringName)
 ## 某扇区压力变化（0..1）。压力可视化订阅它。
 @warning_ignore("unused_signal")
 signal sector_pressure_changed(sector: StringName, pressure: float)
@@ -75,9 +94,6 @@ signal slot_count_changed(new_count: int)
 # ── 监控 / 接管输入 ──────────────────────
 ## 玩家点了控制台上某路 feed（原始输入）。sector = 该路 feed 的扇区。
 signal monitor_feed_clicked(sector: StringName)
-## 主相机切到某副炮视角 / 回主控室。target = "main" 表示回主控室，否则为炮塔/扇区。
-@warning_ignore("unused_signal")
-signal monitor_view_changed(target: StringName)
 ## 手动模式下玩家按扳机发射（PlayerController 只发指令，不直接操作武器）。
 signal turret_fired(turret_id: StringName)
 

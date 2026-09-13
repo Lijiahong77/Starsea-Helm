@@ -6,14 +6,17 @@ extends Node3D
 ##
 ## 覆盖目标：
 ##   ① 配置：presentation.json 的 feel 段读得到，且**不是**走了代码兜底值
-##   ② 接线表：GameFeel 订阅的 5 个事件键在 feel.events 里都存在（防"键名写错 → 静默无反馈"）
+##   ② 接线表：GameFeel 订阅的 5 个事件键在 feel.events 里都存在（防"键名写错 → 静默无反馈"）；
+##      且 **turret_damaged 故意缺席**（DEC-048：持续受击不给反馈）
 ##   ③ 未知事件：返回零反馈，不崩（把静默失败变成可观测）
 ##   ④ 推镜：触发 → 收窄 → 两段走完**精确归位**、不再活跃
-##   ⑤ 震屏：触发 → 有位移 → 全程不超上限 → **精确归零**
+##   ⑤ 震屏：触发 → 有位移 → 全程不超上限 → **精确归零**；多事件叠加取 max 不累加
 ##   ⑥ 总闸：master_scale=0 时全部静默
 ##   ⑦ 让位：L3 锁定期 GameFeel 不接手
 ##   ⑧ 敌人闪白：受击闪 → 到期还原（⑪ ⑤ 起还原到「按血量染过色的静止色」）；连续受击变闪烁而非常白；致死转红且不被还原
 ##   ⑨ 炮塔闪白：闪 → 还原成**型号色**（不是写死的灰）；被毁后颜色不被冷却擦回；restore 清冷却
+##   ⑩ **临界警报阈值化**（DEC-048）：阈值之上零报警 / 首次跌破恰好一次 /
+##      持续被啃不重复 / `restore()` 复位后新一波能再报
 ##
 ## ⚠ 本探针**手动步进**（直接调 advance）而不是等真实帧：
 ## 手感是一套时序，靠"跑几帧看看"断言不准（帧率一变期望值就变）。
@@ -23,6 +26,12 @@ var _pass := 0
 var _fail := 0
 var _cam: Camera3D
 var _feel: GameFeel
+## ⑪ ③ 收到的 turret_critical 次数（「每波只报一次」这条要靠它验）。
+var _crit_count := 0
+
+
+func _on_critical(_turret_id: StringName, _sector: StringName) -> void:
+	_crit_count += 1
 
 
 func _ready() -> void:
@@ -36,6 +45,7 @@ func _ready() -> void:
 	_feel.name = "GameFeel"
 	add_child(_feel)
 	_feel.setup(_cam, self)
+	EventBus.turret_critical.connect(_on_critical)
 
 	await _run()
 
@@ -45,6 +55,7 @@ func _run() -> void:
 	_test_unknown_event()
 	_test_zoom()
 	_test_shake()
+	_test_turret_critical_once()
 	_test_master_mute()
 	_test_lock_yield()
 	_test_enemy_flash()
@@ -70,13 +81,24 @@ func _test_config() -> void:
 	_check("总闸默认 1.0（实测 %.2f）" % FeelKit.master(), absf(FeelKit.master() - 1.0) < 0.001)
 	# 震屏频率必须远低于帧率一半，否则正弦采样混叠成慢晃（JSON 里有注释说明）。
 	_check("震屏频率在安全区（%.1f Hz < 20）" % FeelKit.shake_freq(), FeelKit.shake_freq() < 20.0)
+	# ⑪ ③ 临界阈值（DEC-048）：必须在 (0,1) 内，否则「跌破才报警」永远不成立
+	# （0 = 反馈被关闭，1 = 满血就报，都等于没做这件事）。
+	var th := FeelKit.critical_ratio()
+	_check("临界阈值在 (0,1) 内（实测 %.2f）" % th, th > 0.0 and th < 1.0)
 
 	# GameFeel 订阅的每一个键都必须在接线表里 —— 这是"静默无反馈"的第一道防线。
-	for k in ["player_fire", "enemy_killed", "turret_damaged", "turret_destroyed", "sector_breached"]:
+	for k in ["player_fire", "enemy_killed", "turret_critical", "turret_destroyed", "sector_breached"]:
 		_check("feel.events 有键 '%s'" % k, FeelKit.has_event(k))
 
+	# ⚠ 反向断言：**turret_damaged 故意没有反馈**（DEC-048）。
+	# 它是每物理帧级的连续量，接上任何反馈都会变成"一路被啃一路抖/响"。
+	# 这条断言存在的意义是「别好心把它加回来」—— 若将来真要恢复渐进式受击反馈，
+	# 必须先改这一条，等于强制重新想一次（而不是悄悄滑回旧行为）。
+	_check("feel.events **没有** turret_damaged（持续受击不给反馈，见 DEC-048）",
+		not FeelKit.has_event("turret_damaged"))
+
 	# 每个键都得给出至少一种反馈，否则订阅了也等于没接。
-	for k in ["player_fire", "turret_destroyed", "sector_breached"]:
+	for k in ["player_fire", "turret_critical", "turret_destroyed", "sector_breached"]:
 		var fb := FeelKit.feedback(k)
 		_check("'%s' 至少给一种反馈（shake=%.3f zoom=%.2f）" % [k, float(fb["shake"]), float(fb["zoom"])],
 			float(fb["shake"]) > 0.0 or float(fb["zoom"]) > 0.0)
@@ -133,18 +155,50 @@ func _test_shake() -> void:
 	_check("震屏结束后偏移精确归零（实测 %.8f m）" % _feel.offset_now().length(),
 		_feel.offset_now().length() < 0.0000001)
 	_check("震屏结束后不再活跃", not _feel.is_active())
-	# 二次触发要取 max 而不是累加 —— 否则"一路被啃"会在几帧内顶到上限并卡住。
+	# 同一帧连来多条大事件（临界警报 + 该面失守）要**取 max 而不是累加** ——
+	# 累加会让画面瞬间顶到上限并一直卡在那；取 max 则稳定在旋钮值上。
 	_reset_feel()
-	EventBus.turret_damaged.emit(&"port1", 1.0, &"bomber")
+	EventBus.turret_critical.emit(&"port1", &"port")
 	_feel.set_process(false)
 	var a1 := _feel.shake_amp()
-	for i in 10:
-		EventBus.turret_damaged.emit(&"port1", 1.0, &"bomber")
+	for i in 5:
+		EventBus.turret_critical.emit(&"port1", &"port")
+		EventBus.turret_destroyed.emit(&"port1", &"port")
 		_feel.set_process(false)
 		_feel.advance(step)
 	var a2 := _feel.shake_amp()
-	_check("连续受击时振幅取 max 不累加（%.4f -> %.4f，上限 %.3f）" % [a1, a2, FeelKit.shake_max()],
+	_check("多条大事件叠在一起时振幅取 max 不累加（%.4f -> %.4f，上限 %.3f）" % [a1, a2, FeelKit.shake_max()],
 		a2 <= FeelKit.shake_max() + 0.000001)
+
+
+# ------------------------------------------------- ⑪③ 临界警报阈值化（DEC-048）
+
+## 「受击反馈阈值化」的核心断言：**只有首次跌破阈值才报一次**，每波复位。
+## 这条覆盖了李 2026-09-11 的实机反馈（"一被攻击就搞这么大动静"）——
+## 若有人把 `_check_critical` 写回「每次挨打都发」，本用例立刻红。
+func _test_turret_critical_once() -> void:
+	_crit_count = 0
+	var t := _make_turret()          # hp = hp_max = 80
+	var th := FeelKit.critical_ratio()
+
+	# ① 阈值之上挨打：一次都不该报（这是"平时零反馈"的那一半）
+	_damage_to_ratio(t, 0.9)
+	_check("耐久在阈值之上时**不**报警（实测 %d 次）" % _crit_count, _crit_count == 0)
+
+	# ② 首次跌破：恰好一次
+	_damage_to_ratio(t, 0.25)
+	_check("首次跌破阈值 → 报警 1 次（实测 %d，阈值 %.2f）" % [_crit_count, th], _crit_count == 1)
+
+	# ③ 继续被啃（每帧都在掉）：不重复报 —— 这正是"持续噪音"的护栏
+	for i in 20:
+		t.take_damage(0.1, &"bomber")
+	_check("持续被啃不重复报警（实测 %d 次）" % _crit_count, _crit_count == 1)
+
+	# ④ 每波回满 → 警报状态复位（否则新一波跌破却一声不响）
+	t.restore()
+	_damage_to_ratio(t, 0.25)
+	_check("restore() 后新一波能再报（实测 %d 次）" % _crit_count, _crit_count == 2)
+	t.queue_free()
 
 
 # ------------------------------------------------- ⑥ 总闸
@@ -290,6 +344,16 @@ func _make_turret() -> Turret:
 	})
 	t.snap_to()
 	return t
+
+
+## 把炮塔耐久一次性打到 `ratio`（相对 hp_max）。已经更低就不动（避免误打死）。
+## 用它而不是硬编码伤害值：临界阈值是**旋钮**，改了 JSON 后期望值要自动跟着变，
+## 写死数字的测试会在调参那天变成假红。
+func _damage_to_ratio(t: Turret, ratio: float) -> void:
+	var target := t.hp_max * ratio
+	if t.hp <= target:
+		return
+	t.take_damage(t.hp - target, &"bomber")
 
 
 ## 把 GameFeel 清干净：走完当前反馈 + 关掉自动 _process，让每段测试从同一状态起跑。

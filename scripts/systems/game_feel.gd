@@ -56,7 +56,9 @@ func _ready() -> void:
 	set_process(false)
 	EventBus.turret_fired.connect(_on_turret_fired)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
-	EventBus.turret_damaged.connect(_on_turret_damaged)
+	# ⑪ ③（DEC-048）订阅的是 turret_critical 而不是 turret_damaged：
+	# 后者是每物理帧级的连续量，拿它摇相机会变成"一路被啃一路抖"。
+	EventBus.turret_critical.connect(_on_turret_critical)
 	EventBus.turret_destroyed.connect(_on_turret_destroyed)
 	EventBus.sector_breached.connect(_on_sector_breached)
 	# 阶段切换时清干净：进 REFIT（改名/换装）时镜头不该还带着上一波残留的抖。
@@ -138,8 +140,8 @@ func advance(delta: float) -> void:
 # ── 触发入口 ────────────────────────────────────────────────
 
 ## 震屏。amp 单位 m（相机局部偏移量），与 presentation.json 的 shake_max_offset 同量纲。
-## **取 max 而不是累加**：`turret_damaged` 每物理帧都在发（敌人持续 dps），
-## 累加会让"一路被啃"在几帧内顶到上限并一直卡在那；取 max 则稳定在旋钮值上。
+## **取 max 而不是累加**：同一帧里可能连来两条大事件（例如临界警报 + 该面失守），
+## 累加会让画面瞬间顶到上限并卡住；取 max 则稳定在旋钮值上。
 func shake(amp: float) -> void:
 	if amp <= 0.0 or _cam == null:
 		return
@@ -168,8 +170,10 @@ func _on_enemy_killed(_enemy: Node) -> void:
 	_apply("enemy_killed")
 
 
-func _on_turret_damaged(_turret_id: StringName, _amount: float, _source_id: StringName) -> void:
-	_apply("turret_damaged")
+## ⑪ ③ 临界警报：某门炮耐久首次跌破阈值 → 重震一次（低频，每门炮每波最多一条）。
+## **注意不是 turret_damaged**：那个每帧都在发，见 `_ready` 里的注释。
+func _on_turret_critical(_turret_id: StringName, _sector: StringName) -> void:
+	_apply("turret_critical")
 
 
 func _on_turret_destroyed(_turret_id: StringName, _sector: StringName) -> void:

@@ -45,6 +45,7 @@ func _test_config() -> void:
 	_check("能取到主炮开火音", AudioManager.stream_of(&"sfx_main_gun_fire") != null)
 	_check("能取到副炮开火音", AudioManager.stream_of(&"sfx_sub_gun_fire") != null)
 	_check("能取到 UI 音", AudioManager.stream_of(&"sfx_ui_click") != null)
+	_check("能取到临界警报音", AudioManager.stream_of(&"sfx_turret_critical") != null)
 	_check("能取到 BGM", AudioManager.stream_of(&"bgm_battle") != null)
 
 
@@ -120,18 +121,20 @@ func _test_anti_blowout() -> void:
 	_check("同帧剩下的 4 次被丢（实测 %d）" % AudioManager.drop_count(id),
 		AudioManager.drop_count(id) == 4)
 
-	# ── 时间窗限流：sfx_turret_damaged = 250ms 内最多 1 次 ──
-	# 受创是**每帧**都在发生的高频信号，不限流就是一串爆音。
+	# ── 时间窗限流：limit_ms > 0 且 max_per_window = 1 的音，窗口内只出一次 ──
+	# 选 sfx_ui_hover（60ms / 1 次）作为被测对象：高频 UI 音不限流会变成一串"嗒嗒嗒"。
+	# ⚠ 原来这里测的是 sfx_turret_damaged（250ms/1 次）—— 那条已于 2026-09-11（DEC-048）删除，
+	# 因为"每帧受创音"本身就是 bug（见 turret.gd take_damage 的注释）。
 	AudioManager.reset_stats()
-	var dmg := &"sfx_turret_damaged"
-	AudioManager.play_sfx(dmg, &"port")
-	_check("受创音第 1 次能播（实测 %d）" % AudioManager.play_count(dmg),
-		AudioManager.play_count(dmg) == 1)
+	var win_id := &"sfx_ui_hover"
+	AudioManager.play_sfx(win_id)
+	_check("带时间窗的音第 1 次能播（实测 %d）" % AudioManager.play_count(win_id),
+		AudioManager.play_count(win_id) == 1)
 	await _frames(1)
-	AudioManager.play_sfx(dmg, &"port")
+	AudioManager.play_sfx(win_id)
 	_check("隔帧的第 2 次被时间窗挡下（实测 播%d/丢%d）" % [
-			AudioManager.play_count(dmg), AudioManager.drop_count(dmg)],
-		AudioManager.play_count(dmg) == 1 and AudioManager.drop_count(dmg) == 1)
+			AudioManager.play_count(win_id), AudioManager.drop_count(win_id)],
+		AudioManager.play_count(win_id) == 1 and AudioManager.drop_count(win_id) == 1)
 
 	# ── limit_ms = 0 的音不受时间窗约束（只受同帧去重）──
 	AudioManager.reset_stats()
@@ -147,12 +150,14 @@ func _test_anti_blowout() -> void:
 	# ── 限流键含扇区：同一帧两个不同扇区各自出声 ──
 	# 这条是听觉 HUD 的护栏：若按 id 全局限流，被同时打的两面会互相顶掉，
 	# 玩家就只能听见其中一面 —— 恰好把「哪面在挨打」这个核心信息弄丢了。
+	# 被测对象用**临界警报**：它天然会出现"两个扇区同时响"（两门炮同时进危险区）。
 	AudioManager.reset_stats()
 	await _frames(1)
-	AudioManager.play_sfx(dmg, &"dorsal")
-	AudioManager.play_sfx(dmg, &"ventral")
-	_check("同帧两个不同扇区各播一次（实测 %d）" % AudioManager.play_count(dmg),
-		AudioManager.play_count(dmg) == 2)
+	var crit := &"sfx_turret_critical"
+	AudioManager.play_sfx(crit, &"dorsal")
+	AudioManager.play_sfx(crit, &"ventral")
+	_check("同帧两个不同扇区各播一次（实测 %d）" % AudioManager.play_count(crit),
+		AudioManager.play_count(crit) == 2)
 
 
 # ---------------------------------------------------------------- ⑥ 池
@@ -249,6 +254,14 @@ func _test_bgm_crossfade() -> void:
 
 func _test_event_wiring() -> void:
 	# 低频警报走 EventBus（DEC-046 决定 2）。这里发真事件，验接线表生效。
+	AudioManager.reset_stats()
+	await _frames(1)
+	EventBus.turret_critical.emit(&"starboard", &"starboard")
+	_check("turret_critical → 响临界警报（实测 %d）" % AudioManager.play_count(&"sfx_turret_critical"),
+		AudioManager.play_count(&"sfx_turret_critical") == 1)
+	_check("临界警报按扇区变调（starboard=0.90，实测 %.2f）" % AudioManager.last_pitch(&"sfx_turret_critical"),
+		absf(AudioManager.last_pitch(&"sfx_turret_critical") - 0.90) < 0.001)
+
 	AudioManager.reset_stats()
 	await _frames(1)
 	EventBus.turret_destroyed.emit(&"port", &"port")

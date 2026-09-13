@@ -13,7 +13,7 @@ extends Node
 ## **两条接入口，边界写死**（DEC-046 决定 2）：
 ##   · **低频**（炮毁 / 失守 / 终局 / 敌人被击杀 / 波次）→ 本类自己订阅 `EventBus`，
 ##     接线表在 audio.json 的 `events` 段 —— 加一个警报音不用碰任何业务脚本。
-##   · **高频**（开火 / 命中 / 受创，每帧级）→ 业务代码直接调 `play_sfx()`。
+##   · **高频**（开火 / 命中，每帧级）→ 业务代码直接调 `play_sfx()`。
 ##     **不走 EventBus**：每帧 emit 会把总线刷爆，而 EventBus 的语义是「状态翻转」不是「连续量」。
 ##     这是对 MODULES.md §一 原则 1 的**明确例外**：调的是 autoload 服务，不是跨模块调业务逻辑。
 ##
@@ -354,6 +354,7 @@ func _vec3(v: Variant) -> Vector3:
 ## 低频警报一律走 EventBus（DEC-046 决定 2）。接线目标是 audio.json 的 events 段，
 ## 所以「换个警报音」= 改 JSON，不用碰这里的代码。
 func _connect_events() -> void:
+	EventBus.turret_critical.connect(_on_turret_critical)
 	EventBus.turret_destroyed.connect(_on_turret_destroyed)
 	EventBus.sector_breached.connect(_on_sector_breached)
 	EventBus.all_turrets_destroyed.connect(_on_all_turrets_destroyed)
@@ -376,6 +377,10 @@ func _event_sfx(event_key: String) -> StringName:
 			"audio.json 的 events 段缺这个键，对应警报静音（检查键名拼写）")
 		return &""
 	return StringName(str(ev.get(event_key, "")))
+
+
+func _on_turret_critical(_turret_id: StringName, sector: StringName) -> void:
+	_play(_event_sfx("turret_critical"), sector, 1.0)
 
 
 func _on_turret_destroyed(_turret_id: StringName, sector: StringName) -> void:
