@@ -8,9 +8,10 @@ extends Node
 ## 模拟"撑过一波"，比真打完一波快几个数量级，且断言的是规则而不是战斗结果。
 ##
 ## 覆盖目标：
-##   ① 开局状态：只有 flak + 4 个起始槽位可用，其余全锁
+##   ① 开局状态：只有 flak + 3 个起始槽位可用，其余全锁（DEC-052 起底部无炮，4→3）
 ##   ② 锁定项**装不上去**（规则在 TurretSystem，不在 UI）
-##   ③ 各危机节点的解锁：1→gatling / 2→port2 / 3→lance / 5→starboard2
+##   ③ 各危机节点的解锁：1→gatling / 2→port2 / 3→lance+starboard2 / 4→dorsal2
+##      （DEC-052：原 5→dorsal2、6→ventral2，删掉底部后总槽位 8→6，dorsal2 提前一档到 4）
 ##   ④ 槽位解锁后是**空的**，能装第一门炮，且位置/扇区正确
 ##   ⑤ 信号广播：型号逐个发、槽位数变化才发（不每解锁一个发一次）
 ##   ⑥ 过场能跑完，且解锁播报 consume 后不重复
@@ -39,8 +40,7 @@ func run(ts: TurretSystem, seq: RefitSequence) -> void:
 	_test_crisis_2(ts)
 	_test_crisis_3(ts)
 	await _test_empty_slot(ts)
-	_test_crisis_5(ts)
-	_test_crisis_6(ts)
+	_test_crisis_4(ts)
 	await _test_sector_cycle(ts)
 	await _test_cutscene(ts, seq)
 	_report()
@@ -62,25 +62,30 @@ func _test_initial(ts: TurretSystem) -> void:
 	_check("lance 门槛 = 危机 3（实测 %d）" % ts.variant_unlock_at(&"lance"),
 		ts.variant_unlock_at(&"lance") == 3)
 
-	# ⑧ 每路 feed 两个炮位：4 起始 + 4 个第二炮位 = 8
-	_check("槽位总数 8（4 起始 + 4 路第二炮位，实测 %d）" % ts.all_slot_ids().size(),
-		ts.all_slot_ids().size() == 8)
-	_check("已解锁槽位 4（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 4)
+	# ⑧ 每路 feed 两个炮位：3 起始 + 3 个第二炮位 = 6（DEC-052 起底部不再是"路"）
+	_check("槽位总数 6（3 起始 + 3 路第二炮位，实测 %d）" % ts.all_slot_ids().size(),
+		ts.all_slot_ids().size() == 6)
+	_check("已解锁槽位 3（实测 %d）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 3)
 	_check("port2 开局锁定", not ts.is_slot_unlocked(&"port2"))
 	_check("port2 门槛 = 危机 2（实测 %d）" % ts.slot_unlock_at(&"port2"),
 		ts.slot_unlock_at(&"port2") == 2)
 	_check("starboard2 门槛 = 危机 3（实测 %d）" % ts.slot_unlock_at(&"starboard2"),
 		ts.slot_unlock_at(&"starboard2") == 3)
-	_check("dorsal2 门槛 = 危机 5（实测 %d）" % ts.slot_unlock_at(&"dorsal2"),
-		ts.slot_unlock_at(&"dorsal2") == 5)
-	_check("ventral2 门槛 = 危机 6（实测 %d）" % ts.slot_unlock_at(&"ventral2"),
-		ts.slot_unlock_at(&"ventral2") == 6)
+	_check("dorsal2 门槛 = 危机 4（实测 %d）" % ts.slot_unlock_at(&"dorsal2"),
+		ts.slot_unlock_at(&"dorsal2") == 4)
+	# DEC-052：底部那一路（ventral / ventral2）应当**彻底不存在**，不是"锁着"
+	_check("ventral 槽位已不存在（实测 %d）" % ts.slot_unlock_at(&"ventral"),
+		ts.slot_unlock_at(&"ventral") == 99)
+	_check("ventral2 槽位已不存在（实测 %d）" % ts.slot_unlock_at(&"ventral2"),
+		ts.slot_unlock_at(&"ventral2") == 99)
+	_check("槽位定义里没有 ventral（实测 %s）" % str(ts.all_slot_ids()),
+		not (ts.all_slot_ids() as Array).has(&"ventral"))
 	# 第二炮位与所在那一路同扇区：同路两门都死才算这面失守
 	_check("port2 属 port 扇区（实测 %s）" % ts.slot_sector(&"port2"),
 		ts.slot_sector(&"port2") == &"port")
-	_check("ventral2 属 ventral 扇区（实测 %s）" % ts.slot_sector(&"ventral2"),
-		ts.slot_sector(&"ventral2") == &"ventral")
+	_check("dorsal2 属 dorsal 扇区（实测 %s）" % ts.slot_sector(&"dorsal2"),
+		ts.slot_sector(&"dorsal2") == &"dorsal")
 	var m := ts.slot_mount(&"port2")
 	_check("port2 位置在左舷外表面并向船尾错开（%s）" % str(m),
 		is_equal_approx(m.x, -11.5) and is_equal_approx(m.z, -3.5))
@@ -125,10 +130,10 @@ func _test_crisis_2(ts: TurretSystem) -> void:
 	EventBus.crisis_cleared.emit(2)
 	_check("撑过 2 次危机（实测 %d）" % ts.cleared_count(), ts.cleared_count() == 2)
 	_check("危机 2 解锁 port2 槽位", ts.is_slot_unlocked(&"port2"))
-	_check("已解锁槽位 5（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 5)
+	_check("已解锁槽位 4（实测 %d）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 4)
 	_check("slot_count_changed 广播 1 次（实测 %d）" % _slot_sig, _slot_sig == 1)
-	_check("广播的槽位数 = 5（实测 %d）" % _last_slot_count, _last_slot_count == 5)
+	_check("广播的槽位数 = 4（实测 %d）" % _last_slot_count, _last_slot_count == 4)
 	# 槽位解锁时是空的：有位置但没炮
 	_check("port2 槽位已解锁但**没有炮**（实测 %s）" % str(ts.get_turret(&"port2")),
 		ts.get_turret(&"port2") == null)
@@ -143,8 +148,8 @@ func _test_crisis_3(ts: TurretSystem) -> void:
 	_check("危机 3 解锁 lance（赶在 bomber 第 4 波之前）",
 		ts.is_variant_unlocked(&"lance"))
 	_check("危机 3 解锁 starboard2（右舷第二炮位）", ts.is_slot_unlocked(&"starboard2"))
-	_check("已解锁槽位 6（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 6)
+	_check("已解锁槽位 5（实测 %d）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 5)
 	_check("型号解锁信号累计 2 次（实测 %d）" % _variant_sig, _variant_sig == 2)
 	_check("已解锁型号 3 种（实测 %d）" % ts.unlocked_variant_ids().size(),
 		ts.unlocked_variant_ids().size() == 3)
@@ -174,25 +179,19 @@ func _test_empty_slot(ts: TurretSystem) -> void:
 
 # ---------------------------------------------------------------- ③ 危机 5
 
-func _test_crisis_5(ts: TurretSystem) -> void:
+func _test_crisis_4(ts: TurretSystem) -> void:
 	EventBus.crisis_cleared.emit(4)
-	_check("危机 4 无新解锁（信号仍 %d / %d）" % [_variant_sig, _slot_sig],
-		_variant_sig == 2 and _slot_sig == 2)
-	EventBus.crisis_cleared.emit(5)
-	_check("危机 5 解锁 dorsal2（顶部第二炮位）", ts.is_slot_unlocked(&"dorsal2"))
-	_check("已解锁槽位 7（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 7)
+	_check("危机 4 解锁 dorsal2（顶部第二炮位）", ts.is_slot_unlocked(&"dorsal2"))
+	_check("已解锁槽位 6（3 起始 + 3 第二炮位，实测 %d）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 6)
 	_check("slot_count_changed 累计 3 次（实测 %d）" % _slot_sig, _slot_sig == 3)
-	_check("广播的槽位数 = 7（实测 %d）" % _last_slot_count, _last_slot_count == 7)
-
-
-func _test_crisis_6(ts: TurretSystem) -> void:
-	EventBus.crisis_cleared.emit(6)
-	_check("危机 6 解锁 ventral2（底部第二炮位）", ts.is_slot_unlocked(&"ventral2"))
-	_check("已解锁槽位 8（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 8)
-	_check("slot_count_changed 累计 4 次（实测 %d）" % _slot_sig, _slot_sig == 4)
-	_check("广播的槽位数 = 8（实测 %d）" % _last_slot_count, _last_slot_count == 8)
+	_check("广播的槽位数 = 6（实测 %d）" % _last_slot_count, _last_slot_count == 6)
+	# 再撑过一次也不该有新东西了：槽位已全开（型号最多 3 种，危机 3 已全解锁）
+	EventBus.crisis_cleared.emit(5)
+	_check("危机 5 无新解锁（型号 %d / 槽位 %d）" % [_variant_sig, _slot_sig],
+		_variant_sig == 2 and _slot_sig == 3)
+	_check("最终槽位数仍是 6（实测 %d）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 6)
 
 
 # ---------------------------------------------------------------- 按路循环视角（DEC-048）
@@ -271,7 +270,7 @@ func _test_cutscene(ts: TurretSystem, seq: RefitSequence) -> void:
 	_check("危机 7 无新解锁 → fresh 仍为空", ts.fresh_unlocks().is_empty())
 	_check("槽位与型号已全解锁（%d/%d）" % [
 			ts.swappable_ids().size(), ts.unlocked_variant_ids().size()],
-		ts.swappable_ids().size() == 8 and ts.unlocked_variant_ids().size() == 3)
+		ts.swappable_ids().size() == 6 and ts.unlocked_variant_ids().size() == 3)
 
 
 # ---------------------------------------------------------------- 工具

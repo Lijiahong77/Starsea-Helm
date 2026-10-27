@@ -46,13 +46,12 @@
   },
 
   "sector_hud": {
-    "_doc": "⭐ **听觉 HUD**（bible 04 §六）：不同扇区受击用不同音高，玩家要的是「听得懂是哪一面」。\n     spatial=true 的扇区改走 3D 播放器；其余走 2D。pitch 全部是旋钮，实机听着别扭就改这里。",
+    "_doc": "⭐ **听觉 HUD**（bible 04 §六）：不同扇区受击用不同音高，玩家要的是「听得懂是哪一面」。\n     spatial=true 的扇区改走 3D 播放器；其余走 2D。pitch 全部是旋钮，实机听着别扭就改这里。\n     ⚠ ventral（船底）已随 DEC-052 移除：底部没有炮塔，不会有「底部受击」这件事，\n     留着一项永不触发的音高只会误导后来人以为那里有东西。\n     aft 保留作兜底（推进器区，敌人不主攻，但扇区概念仍在）。",
     "fore":      { "pitch": 1.00, "spatial": true },
     "aft":       { "pitch": 0.75, "spatial": false },
     "port":      { "pitch": 1.15, "spatial": false },
     "starboard": { "pitch": 0.90, "spatial": false },
-    "dorsal":    { "pitch": 1.30, "spatial": false },
-    "ventral":   { "pitch": 0.65, "spatial": false }
+    "dorsal":    { "pitch": 1.30, "spatial": false }
   },
 
   "events": {

@@ -1,6 +1,6 @@
 extends Control
 # 独立 SubViewport 测试场景（技术验证，不并入主游戏）
-# 目的：验证「主控室常驻 4 路副炮实时画面」是否可行 + 性能是否可控
+# 目的：验证「主控室常驻 4 路监控实时画面」是否可行 + 性能是否可控
 # 运行方式：在 Godot 打开本场景，按「运行当前场景」(Play Scene / F6 或 Ctrl+F5)
 #           —— 不要按 F5（F5 跑的是尚未搭建的主游戏场景）
 # 看什么：2x2 四块带标签、带彩色边框的画面是否在转动；顶部 FPS 是否 ≥55
@@ -14,7 +14,7 @@ const FEEDS := [
 	{"name": "① PORT 左舷",   "bg": Color(0.04, 0.10, 0.22), "accent": Color(0.30, 0.70, 1.00), "cube": Color(0.20, 0.60, 1.00)},
 	{"name": "② STBD 右舷",   "bg": Color(0.05, 0.18, 0.08), "accent": Color(0.40, 1.00, 0.50), "cube": Color(0.30, 1.00, 0.40)},
 	{"name": "③ DORSAL 上",   "bg": Color(0.20, 0.10, 0.04), "accent": Color(1.00, 0.65, 0.25), "cube": Color(1.00, 0.60, 0.20)},
-	{"name": "④ VENTRAL 下",  "bg": Color(0.16, 0.04, 0.16), "accent": Color(1.00, 0.35, 0.95), "cube": Color(1.00, 0.30, 0.90)},
+	{"name": "④ FORE 前(主炮)", "bg": Color(0.16, 0.04, 0.16), "accent": Color(0.55, 0.95, 1.00), "cube": Color(1.00, 0.30, 0.90)},
 ]
 
 var _fps_label: Label

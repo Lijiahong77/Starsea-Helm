@@ -14,8 +14,13 @@
 | 下 | Floor | y=-0.1, z=-1.3 | 5.4×0.2×6.4 | **y=-0.2** |
 
 **当前 4 路 mount**（`monitor.feed_cams[i].mount`，与 `axis`/`up` 平级）：
-`SVPort [-2.8,1.5,0]` / `SVStarboard [2.8,1.5,0]` / `SVDorsal [0,3.3,0]` / `SVVentral [0,-0.3,0]`
-→ 4 路 `[aim]` 日志全为 `显式`，距中心 3.2 / 3.2 / 3.3 / 0.3m。
+`SVPort [-2.8,1.5,0]` / `SVStarboard [2.8,1.5,0]` / `SVDorsal [0,3.3,0]` / `SVFore [0,1.5,2.8]`
+
+⚠ **DEC-052（2026-09-14）：第 4 路由 ventral 改成 fore**。原来是 `SVVentral [0,-0.3,0]`（船底），
+船底不设炮塔后第 4 路改显示**主炮正面**：`axis=[0,0,1]`、mount 取前墙(z=+1.8)外 2.8m、`up=[0,1,0]`、
+MarkerFore 在 (0,0,60)。节点名 `SVVentral/ScreenVentral/MarkerVentral` 已全部改名
+`SVFore/ScreenFore/MarkerFore`（屏幕**物理位置不变**，仍在右下角那格）。
+fore 那一路上是主炮，没有独立副炮炮位 → 点它 / 按 5 键 = `focus(&"main")`（与按 1 同落点）。
 
 ⚠ **余量警告**：左墙外表面 -2.7，mount 取 -2.8 只剩 **0.1m**，与 `camera.near=0.1` 相等——能跑但不安全。
 建议 **±3.0~3.2**（留 0.3~0.5m），将来补舰体网格也不会陷进去。

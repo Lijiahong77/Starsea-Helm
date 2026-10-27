@@ -14,6 +14,8 @@
 
 ## 工程落地通则（每条都适用）
 
+> 📌 **拿到模型前先读 `docs/art/3D导入导出规范.md`** —— 它把「原点(Cursor)放哪 / 朝向 / 单位」按模型类型逐条定死（炮塔原点=底座旋转轴、敌人=几何中心、飞船=船中、舱室=房间中心；统一 +Z 朝前）。**原点放错不会报错，只会静默错位**（炮塔陷进船体、敌人鼻子朝后），所以先对齐再导入。
+
 1. 导出格式统一 **`.glb`**（比 `.gltf` 单文件好管，Git 友好，Godot 4 原生导入）。
 2. 导入 Godot 后**先调 scale 使最长边 = 表里标注的米数**，再摆位。别让模型"看着差不多"。
 3. 舱室类（墙/地/顶/舷窗框）是**内壁** → 模型法线必须朝内，或材质开 `cull_mode = disabled`，否则从内部看是透明的。
@@ -62,7 +64,7 @@
 | [ ] | 子项 | 位置 | 尺度/行为 | Sketchfab 关键词 | Hunyuan3D 提示词 |
 |-----|------|------|----------|----------------|-----------------|
 | ☐ | 主炮（固定正面，多管可叠）| `fore` | **不转塔**，只打前；耐久 150–250 | `sci-fi capital ship cannon fixed` | `big fixed sci-fi naval cannon, multiple barrels` |
-| ☐ | 副炮（四向可多门）| port/starboard/dorsal/ventral | 可转，耐久 60–100/门；间距 18–26 m | `sci-fi point defense turret rotatable` | `small rotatable sci-fi autocannon turret` |
+| ☐ | 副炮（三向可多门）| port/starboard/dorsal（**底部无炮，DEC-052**） | 可转，耐久 60–100/门；间距 18–26 m | `sci-fi point defense turret rotatable` | `small rotatable sci-fi autocannon turret` |
 
 > 注：**6 种炮塔类型**（速射/重炮/散射/对空/对重甲/范围，见 `02_entities.md §三`）建议**先不每种单独建模** —— 共用基础副炮模型，靠换色 / 换管数 / 换枪口区分（`TurretSystem.swap_turret()` 已支持换外观）。等资产量上来再补专属模型。
 

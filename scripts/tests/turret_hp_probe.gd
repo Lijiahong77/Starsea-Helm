@@ -4,7 +4,7 @@ extends Node3D
 ## 依据协作约定第 4 条：复杂功能先建独立测试场景跑通，再搬进主场景。
 ##
 ## 验证七件事：
-## ① 5 门炮的初始耐久**来自 turrets.json**，且 hp_max 已快照（回满要用）
+## ① 4 门炮的初始耐久**来自 turrets.json**，且 hp_max 已快照（回满要用）
 ## ② 敌人悬停后**只打最近的那门**，扣血量 == dps × 时间（伤害路由 + 数值正确）
 ## ③ 耐久归零 → 被毁（destroyed / 事件 / 面失守），且不会掉成负数
 ## ④ 被毁的炮塔**不再开火**（否则会出现"炮已毁、子弹还在飞"的假象）
@@ -23,12 +23,14 @@ extends Node3D
 const ENEMY_DATA_PATH := "res://data/enemies.json"
 const TURRET_DATA_PATH := "res://data/turrets.json"
 
-## 5 门炮塔的 id（顺序与 TurretSystem 的注册顺序一致）。
-const ALL_IDS: Array[StringName] = [&"main", &"port", &"starboard", &"dorsal", &"ventral"]
-## 4 门副炮（主炮扇区是 fore，不在此列）。
-const SUB_SECTORS: Array[StringName] = [&"port", &"starboard", &"dorsal", &"ventral"]
-## 5 个来袭扇区（生成敌人用：fore + 4 面）。
-const SECTOR_IDS: Array[StringName] = [&"fore", &"port", &"starboard", &"dorsal", &"ventral"]
+## 4 门炮塔的 id（顺序与 TurretSystem 的注册顺序一致）。DEC-052：底部那门已移除。
+const ALL_IDS: Array[StringName] = [&"main", &"port", &"starboard", &"dorsal"]
+## 3 门副炮（主炮扇区是 fore，不在此列）。
+const SUB_SECTORS: Array[StringName] = [&"port", &"starboard", &"dorsal"]
+## 4 个来袭扇区（生成敌人用：fore + 3 面）。
+## ⚠ 不含 ventral / aft：这两个面不设炮塔（DEC-036 / DEC-052），敌人也不主攻 ——
+## 往没炮的方向生成敌人只会让"某门炮掉血"的断言变得不可解释。
+const SECTOR_IDS: Array[StringName] = [&"fore", &"port", &"starboard", &"dorsal"]
 
 const DT := 1.0 / 60.0
 ## 拦截机 17m/s，从 190m 飞到 52m 需 8.1s；推 10s 留余量。
@@ -37,7 +39,7 @@ const APPROACH_FRAMES := 600
 const ATTACK_FRAMES := 120
 ## 副炮 fire_interval = 3s，推 4s 保证每门至少打出 1 发。
 const FIRE_FRAMES := 240
-## 轰炸机 11m/s（进场 12.5s）+ 打光 5 门炮（≈440 HP / 7dps×5）≈ 30s。留足余量。
+## 轰炸机 11m/s（进场 12.5s）+ 打光 4 门炮（≈340 HP / 7dps×4）≈ 25s。留足余量。
 const ALL_DEAD_FRAMES := 12000
 
 var _pass := 0
@@ -96,7 +98,7 @@ func _test_initial_hp(ts: TurretSystem) -> void:
 		var t := ts.get_turret(s)
 		_check("%s 耐久 = hp_per_gun = %.0f（实测 %.0f）" % [s, sub_hp, t.hp], t.hp == sub_hp)
 		_check("%s hp_max 已快照（实测 %.0f）" % [s, t.hp_max], t.hp_max == sub_hp)
-	_check("开局 5 门全部存活（实测 %d）" % ts.alive_count(), ts.alive_count() == 5)
+	_check("开局 4 门全部存活（实测 %d）" % ts.alive_count(), ts.alive_count() == 4)
 
 
 ## ② 伤害路由 + 数值：只有一门在掉血，且掉的是**距敌人最近**的那门，掉血量 = dps × 秒数。
@@ -148,7 +150,7 @@ func _test_destroy(ts: TurretSystem, e: Enemy) -> void:
 	_check("sector_breached 已发出（port 面失守）", _breached.has(&"port"))
 	_check("耐久不会掉成负数（实测 %.2f）" % port.hp, port.hp == 0.0)
 	_check("被毁后 is_alive() == false", not port.is_alive())
-	_check("其余 4 门仍存活（实测 %d）" % ts.alive_count(), ts.alive_count() == 4)
+	_check("其余 3 门仍存活（实测 %d）" % ts.alive_count(), ts.alive_count() == 3)
 
 
 ## ④ 被毁的炮塔不再开火，其余副炮照常自动开火。
@@ -210,8 +212,8 @@ func _test_takeover_and_restore(ts: TurretSystem) -> void:
 	for t in ts.all_turrets():
 		if t.destroyed or t.hp != t.hp_max:
 			all_full = false
-	_check("开战即回满：5 门全部复活且满耐久（存活 %d）" % ts.alive_count(),
-		all_full and ts.alive_count() == 5)
+	_check("开战即回满：4 门全部复活且满耐久（存活 %d）" % ts.alive_count(),
+		all_full and ts.alive_count() == 4)
 
 
 # ── 工具 ────────────────────────────────────────────

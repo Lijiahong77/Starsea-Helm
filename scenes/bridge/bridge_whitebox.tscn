@@ -96,15 +96,15 @@ emission_enabled = true
 emission = Color(0.28, 0.28, 0.28, 1)
 emission_texture = SubResource("vt_dorsal")
 
-[sub_resource type="ViewportTexture" id="vt_ventral"]
-viewport_path = NodePath("Feeds/SVVentral")
+[sub_resource type="ViewportTexture" id="vt_fore"]
+viewport_path = NodePath("Feeds/SVFore")
 
-[sub_resource type="StandardMaterial3D" id="mat_screen_ventral"]
+[sub_resource type="StandardMaterial3D" id="mat_screen_fore"]
 albedo_color = Color(0.05, 0.06, 0.08, 1)
-albedo_texture = SubResource("vt_ventral")
+albedo_texture = SubResource("vt_fore")
 emission_enabled = true
 emission = Color(0.28, 0.28, 0.28, 1)
-emission_texture = SubResource("vt_ventral")
+emission_texture = SubResource("vt_fore")
 
 [sub_resource type="BoxMesh" id="box_marker"]
 size = Vector3(6, 6, 6)
@@ -124,10 +124,10 @@ albedo_color = Color(1, 0.6, 0.2, 1)
 emission_enabled = true
 emission = Color(1, 0.6, 0.2, 1)
 
-[sub_resource type="StandardMaterial3D" id="mat_marker_ventral"]
-albedo_color = Color(0.75, 0.4, 1, 1)
+[sub_resource type="StandardMaterial3D" id="mat_marker_fore"]
+albedo_color = Color(0.55, 0.95, 1, 1)
 emission_enabled = true
-emission = Color(0.75, 0.4, 1, 1)
+emission = Color(0.55, 0.95, 1, 1)
 
 [node name="Bridge" type="Node3D" unique_id=710949455]
 script = ExtResource("1_bridge")
@@ -232,10 +232,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.275, -0.2125, 0.02)
 mesh = SubResource("quad_screen")
 surface_material_override/0 = SubResource("mat_screen_dorsal")
 
-[node name="ScreenVentral" type="MeshInstance3D" parent="MonitorPanel" unique_id=2126017174]
+[node name="ScreenFore" type="MeshInstance3D" parent="MonitorPanel" unique_id=2126017174]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, -0.2125, 0.02)
 mesh = SubResource("quad_screen")
-surface_material_override/0 = SubResource("mat_screen_ventral")
+surface_material_override/0 = SubResource("mat_screen_fore")
 
 [node name="Feeds" type="Node3D" parent="." unique_id=84673936]
 
@@ -263,12 +263,12 @@ render_target_update_mode = 3
 transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 8.5, 0)
 current = true
 
-[node name="SVVentral" type="SubViewport" parent="Feeds" unique_id=1293610783]
+[node name="SVFore" type="SubViewport" parent="Feeds" unique_id=1293610783]
 size = Vector2i(320, 240)
 render_target_update_mode = 3
 
-[node name="FeedCam" type="Camera3D" parent="Feeds/SVVentral" unique_id=262552830]
-transform = Transform3D(-1, 0, 0, 0, 0, 1, 0, 1, 0, 0, -8.5, 0)
+[node name="FeedCam" type="Camera3D" parent="Feeds/SVFore" unique_id=262552830]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 32.5)
 current = true
 
 [node name="Markers" type="Node3D" parent="." unique_id=1496405584]
@@ -288,10 +288,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 60, 0)
 mesh = SubResource("box_marker")
 surface_material_override/0 = SubResource("mat_marker_dorsal")
 
-[node name="MarkerVentral" type="MeshInstance3D" parent="Markers" unique_id=94498245]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -60, 0)
+[node name="MarkerFore" type="MeshInstance3D" parent="Markers" unique_id=94498245]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 60)
 mesh = SubResource("box_marker")
-surface_material_override/0 = SubResource("mat_marker_ventral")
+surface_material_override/0 = SubResource("mat_marker_fore")
 
 [node name="Player" type="Node3D" parent="." unique_id=140554100]
 transform = Transform3D(-1, 0, 2.5351817e-06, 0, 1, 0, -2.5351817e-06, 0, -1, 0, 0, -0.66924405)

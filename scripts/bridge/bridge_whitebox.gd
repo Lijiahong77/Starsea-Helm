@@ -23,8 +23,13 @@ const DATA_PATH := "res://data/presentation.json"
 # 敌人参数的单一真源是 enemies.json（目录约定见 docs/MODULES.md §五）。
 const ENEMY_DATA_PATH := "res://data/enemies.json"
 
-# 数字键 → **视角**目标。1 = 主炮；2-5 = 四路 feed 的**扇区**（左/右/上/下），
+# 数字键 → **视角**目标。1 = 主炮；2-5 = 四路 feed 的**扇区**（左/右/上/前），
 # 顺序与 SCREEN_FEED 四块屏一致。
+#
+# ⚠ DEC-052（2026-09-14）：第 4 路原本是 ventral（船底副炮），随底部炮塔一并移除，
+# 改成 **fore（正面 / 主炮那一路）**。所以 5 键与 1 键都落在正面 ——
+# 差别只在来路：1 = 直接看主炮，5 = 从监控第 4 块屏切过去（等价于 focus(&"main")）。
+# fore 面没有独立的副炮炮位，故 _input 里把它和 main 一起特判（见那里）。
 #
 # ⚠ **这些键只切视角，不接管**（2026-09-11 · DEC-048）：切过去后炮塔仍保持 AUTO 自动开火，
 # 想自己打要再按**鼠标右键**（见 _input 的 MOUSE_BUTTON_RIGHT 分支）。
@@ -33,11 +38,11 @@ const ENEMY_DATA_PATH := "res://data/enemies.json"
 #
 # ⚠ **2-5 的值是扇区不是炮塔 id**（⑧ 起）：每路可以装两门炮，按同键会
 # 在该路的炮位之间**循环切换**（转完一圈回主控室，见 TurretSystem.focus_sector）。
-# 所以键位不会因为炮位数从 4 涨到 8 而膨胀到 9 个 ——
+# 所以键位不会因为炮位数从 3 涨到 6 而膨胀到 7 个 ——
 # 「2-5 = 监控面板上 4 块屏」这个肌肉记忆保持不变。
 const VIEW_KEYS := {
 	KEY_1: &"main", KEY_2: &"port", KEY_3: &"starboard",
-	KEY_4: &"dorsal", KEY_5: &"ventral",
+	KEY_4: &"dorsal", KEY_5: &"fore",
 }
 
 # 屏幕(显示屏) Mesh → 对应 feed(SubViewport) 的节点路径映射。
@@ -56,7 +61,7 @@ const SCREEN_FEED := [
 	["MonitorPanel/ScreenPort", "Feeds/SVPort"],
 	["MonitorPanel/ScreenStarboard", "Feeds/SVStarboard"],
 	["MonitorPanel/ScreenDorsal", "Feeds/SVDorsal"],
-	["MonitorPanel/ScreenVentral", "Feeds/SVVentral"],
+	["MonitorPanel/ScreenFore", "Feeds/SVFore"],
 ]
 # 各 feed 相机的「结构映射」：哪路 feed 拍哪个扇区的标记、朝哪个方向。
 #
@@ -71,7 +76,7 @@ const FEED_CAM_FALLBACK := [
 	{"feed": "SVPort", "marker": "MarkerPort", "axis": Vector3(-1, 0, 0)},
 	{"feed": "SVStarboard", "marker": "MarkerStarboard", "axis": Vector3(1, 0, 0)},
 	{"feed": "SVDorsal", "marker": "MarkerDorsal", "axis": Vector3(0, 1, 0)},
-	{"feed": "SVVentral", "marker": "MarkerVentral", "axis": Vector3(0, -1, 0)},
+	{"feed": "SVFore", "marker": "MarkerFore", "axis": Vector3(0, 0, 1)},
 ]
 # 最后兜底：JSON 既没给 mount、船体尺寸也拿不到时，相机停在
 # 「标记到船中心距离」的这个比例处。正常不会走到这里（见 _hull_radius）。
@@ -394,10 +399,13 @@ func _place_markers() -> void:
 # 每个 FeedCam 是其父 SubViewport 的子节点，故“最近的父 Viewport”= 该 SubViewport，
 # 由官方文档确认：Camera3D 总是渲染在最近的父 Viewport 上。设置 local position/朝向即可。
 #
-# 【为什么必须贴舰壁】按 DEC-038，监控 = 4 路**副炮**实时画面，副炮装在舰体外表面；
+# 【为什么必须贴舰壁】按 DEC-038，监控 = **副炮 / 主炮炮位**的实时画面，炮塔装在舰体外表面；
 # 相机浮在 45m 外的太空里既不成立、也拍不到"本舰周边"的态势。故挂载点由
 # ship 尺寸推导（_hull_radius），方向取 axis，看向点取标记的**实际世界坐标**
 # —— 改 marker_distance / ship.* 后相机会自动跟随，不会脱焦。
+#
+# ⚠ DEC-052：4 路里只有 3 路是副炮（左/右/上），第 4 路是 fore **主炮那一路**。
+#   底部原本那一路已被取消（船底不设炮塔）。
 #
 # ⚠ 挂载点在运行时由本函数每帧（启动时一次）写入 cam.position，
 #   所以在编辑器里拖动 FeedCam 是**无效的**，改数值请改 presentation.json。
@@ -999,14 +1007,17 @@ func _input(event: InputEvent) -> void:
 				# 「按了 3 键但没切过去」和「按了 3 键切过去了但画面变化不明显」分不清。
 				# 键盘事件天然不会同帧重复，但仍过 AudioManager 的统一入口（限流表里 limit_ms=0）。
 				AudioManager.play_sfx(&"sfx_ui_click")
-				if target == &"main":
+				# fore 与主炮同面（DEC-052）：正面那一路没有独立的副炮炮位，
+				# 走 focus_sector(&"fore") 会因为「该路无槽位」而毫无反应，
+				# 所以和 main 一样直接 focus 主炮 —— 与 TurretSystem.focus_by_feed 的特判一致。
+				if target == &"main" or target == &"fore":
 					_turret_system.focus(&"main")
 				else:
 					_turret_system.focus_sector(target)
 		elif k.pressed and k.keycode == KEY_B:
 			# B = 开战 / 收战开关。**这是第⑤步之前缺失的 BATTLE 入口**：
 			# 状态机初始 REFIT，而此前没有任何输入能切到 BATTLE，
-			# 于是 set_battle_active(true) 从未在实机被调用过 —— 5 门炮的自动开火
+			# 于是 set_battle_active(true) 从未在实机被调用过 —— 4 门炮的自动开火
 			# 代码一直是对的，只是从没跑起来（Round 2 的断言是测试里手动调的）。
 			# RESULT 状态下按 B 先回 REFIT（RESULT→BATTLE 是非法转移，见
 			# GameStateManager.ALLOWED_TRANSITIONS），再按一次才开战。
@@ -1032,7 +1043,7 @@ func _input(event: InputEvent) -> void:
 			# 保留理由：验证扇区分布 / 压力计算 / 舷窗可见性时，不必等一波打完。
 			# ⚠ 这些敌人**不计入波次**（WaveSystem 只追踪自己 spawn 的那批），
 			# 故按 E 既不会让本波永远清不空，也不会推进危机数。
-			#   E = 随机扇区（5 面，aft 按 DEC-036 排除）—— 验证扇区分布与压力
+			#   E = 随机扇区（DEC-036 排除 aft、DEC-052 排除 ventral，剩 4 面）—— 验证扇区分布与压力
 			#   R = 全部生成在 fore —— 艏部舷窗正对的方向，保证主视角**看得见**
 			#
 			# 为什么还要有 R：DEC-026 规定舰桥只有艏部一面舷窗，随机生成的敌人
@@ -1314,7 +1325,7 @@ func _leave_station_view() -> void:
 ##   绕 Y 轴转 θ 后，朝向 = (-sinθ, 0, -cosθ) → 要等于 out 的水平分量，
 ##   故 θ = atan2(-out.x, -out.z)。验证：out=+Z 时 θ=π，与 _yaw 初值 PI 一致。
 ##   绕 X 轴转 φ 后，朝向的 y 分量 = sin(φ) → φ = asin(out.y)。
-## pitch 仍受 pitch_limit 约束：dorsal/ventral 会得到 ±limit 而非 ±90°，
+## pitch 仍受 pitch_limit 约束：dorsal 会得到 +limit 而非 +90°，
 ## 差的那 10° 玩家一动鼠标就补上了，不值得为它破例放宽限制。
 func _aim_outward(muzzle: Vector3) -> void:
 	var out_dir := muzzle.normalized()
@@ -1530,8 +1541,8 @@ func _refresh_hud() -> void:
 		if ann != "":
 			txt += "\n▌ %s\n" % ann
 		var line := ""
-		var tags := {&"port": "左", &"starboard": "右", &"dorsal": "上", &"ventral": "下"}
-		for s in [&"port", &"starboard", &"dorsal", &"ventral"]:
+		var tags := {&"port": "左", &"starboard": "右", &"dorsal": "上", &"fore": "前"}
+		for s in [&"port", &"starboard", &"dorsal", &"fore"]:
 			var st: int = _collapse.sector_state(s)
 			var tag: String = str(tags.get(s, "?"))
 			var mark := "好"
@@ -1544,7 +1555,7 @@ func _refresh_hud() -> void:
 	if _state == &"RESULT":
 		txt += "\n★ 全部炮塔被毁 —— 按 B 回 REFIT 再来一次"
 	txt += "\n鼠标转头 (yaw 360° / pitch ±%.0f°) · ESC 释放鼠标 · 再按 ESC 退出" % _pitch_limit
-	txt += "\n1 主炮 · 2-5 接管某路(左/右/上/下)，再按同键换该路另一门炮 · Space 或左键 开火 · E/R 生成敌人 · F 可见性诊断"
+	txt += "\n1 或 5 主炮(正面) · 2-4 切某路视角(左/右/上)，再按同键换该路另一门炮 · Space 或左键 开火 · E/R 生成敌人 · F 可见性诊断"
 	if _turret_system != null and _turret_system.current_manual_id != &"":
 		txt += "\n★ 接管中: %s（再按同键换该路下一门 / ESC 回主控室）" % _turret_system.current_manual_id
 	_hud.text = txt

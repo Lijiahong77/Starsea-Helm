@@ -33,6 +33,9 @@ signal turret_damaged(turret_id: StringName, amount: float, source_id: StringNam
 ## 订阅方：GameFeel（重震一次）、AudioManager（警报音）。
 signal turret_critical(turret_id: StringName, sector: StringName)
 ## 某炮塔被摧毁。sector = 所属扇区（fore/port/starboard/dorsal/ventral/aft）。
+## 实际会出现的有炮扇区：fore（主炮）+ port / starboard / dorsal（副炮）。
+## aft（DEC-036）与 ventral（DEC-052）不设炮塔，不会作为 sector 出现 ——
+## 保留在扇区枚举里是因为「飞经该方向的敌人」仍要能被 sector_of 正确归类。
 signal turret_destroyed(turret_id: StringName, sector: StringName)
 ## 全部炮塔被摧毁 → GameStateManager 进入 RESULT。
 signal all_turrets_destroyed()

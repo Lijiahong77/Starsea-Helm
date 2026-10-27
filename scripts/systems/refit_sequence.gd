@@ -37,17 +37,17 @@ const DEBUG_LOG := false
 enum Phase { IDLE, FADE_IN, TRAVEL, MECHANIC, GARAGE, FADE_OUT }
 
 ## 槽位 id → 中文名。改装台显示用；加新扇区时同步补这里。
+## ⚠ DEC-052（2026-09-14）：底部（ventral / ventral2）两行已随船底副炮一并删除。
 const SLOT_LABELS := {
 	&"port": "左舷炮位",
 	&"starboard": "右舷炮位",
 	&"dorsal": "顶部炮位",
-	&"ventral": "底部炮位",
-	# ⑧ 每路 feed 的第二炮位（DEC-042）。四路都有，解锁分批：
-	# 先左右舷（危机 2 / 3），后顶底（危机 5 / 6）。中文名说清是"第二炮位"。
+	# ⑧ 每路 feed 的第二炮位（DEC-042）。DEC-052 起只剩三路（左/右/上，底部已无炮），
+	# 解锁分批：先左右舷（危机 2 / 3），后顶部（危机 4，原 5 提前一档 —— 见 turrets.json）。
+	# 中文名说清是"第二炮位"。
 	&"port2": "左舷第二炮位",
 	&"starboard2": "右舷第二炮位",
 	&"dorsal2": "顶部第二炮位",
-	&"ventral2": "底部第二炮位",
 }
 
 ## 改装台阶段的黑幕浓度。**刻意不是 1.0**：全黑就看不见换装特效了，
@@ -602,7 +602,9 @@ func _build_damage_panel() -> void:
 	if not dl.has_any():
 		_dmg_body = "[color=#7d8794]%s[/color]" % str(mech.get("damage_none", "本波无战损"))
 		return
-	var sectors: Array[StringName] = [&"port", &"starboard", &"dorsal", &"ventral"]
+	# DEC-052：底部已无炮位，只剩三面。主炮（main）不在此列 —— 它不是槽位，
+	# 战损面板历来的口径就是「按槽位扇区列」，本次不改这个口径。
+	var sectors: Array[StringName] = [&"port", &"starboard", &"dorsal"]
 	var bb := ""
 	for sector in sectors:
 		for sid in ts.all_slot_ids():

@@ -3,7 +3,7 @@
   "_doc_ship_center": "敌人直线飞向的目标点。白盒阶段 = 舰桥房间中心（.tscn 实测：z 中心 -1.3、y 中心 1.5）；等整船网格建好后改成真正的舰体中心。",
   "_doc_heavy": "enemy_heavy 在 BACKLOG 里是 P1，本轮（③六扇区+敌人）只实现 interceptor + bomber，heavy 参数预留不启用。",
   "_doc_pressure": "pressure_reference_count = 压力归一化分母：某扇区敌人数达到该值时 pressure = 1.0。bible 02_entities.md 定义 pressure = 威胁值 / 剩余防御力，但炮塔实体属④⑤步，③ 阶段先按威胁数归一化，⑤ 接真实防御力时替换此公式。",
-  "_doc_sector_distribution": "敌人六面来袭权重（0 = 该面完全不来敌）。aft 取 0 依据 DEC-036（推进器高温区，敌人不主攻）。",
+  "_doc_sector_distribution": "敌人六面来袭权重（0 = 该面完全不来敌）。\n     aft 取 0 依据 DEC-036（推进器高温区，敌人不主攻）。\n     ventral 取 0 依据 DEC-052（2026-09-14 去掉船底副炮）：**没炮的面就不该有威胁** ——\n     否则玩家会挨打却无牌可打，「认真装配 vs 随便装配」的存活差就没了（宪法第一条）。",
   "enemy": {
     "spawn_radius": 190,
     "attack_range": 52,
@@ -33,13 +33,14 @@
     "pressure_reference_count": 6,
     "_doc_spawn_cone_deg": "生成方向相对扇区轴线的最大偏角（锥形采样半角）。上限 45（立方体面的内切半角，超过就会跨到邻面，导致「生成时说 fore、跑起来判成 ventral」）。调小 = 敌人更集中在正面来袭；调大 = 来袭角度更散，但散到一定程度会飞到舷窗视野外被艏部墙挡住。",
     "spawn_cone_deg": 25,
+    "_doc_distribution_note": "⚠ 这是**相对权重**：ventral 归零后敌人总数不变、可生成面从 5 减到 4，\n      单面压力约 +25%。实机觉得太挤先动 dps_* 或 pressure_reference_count，别急着改回权重。",
     "sector_distribution": {
       "fore": 1.0,
       "aft": 0.0,
       "port": 1.0,
       "starboard": 1.0,
       "dorsal": 1.0,
-      "ventral": 1.0
+      "ventral": 0.0
     },
     "_doc_display_name": "⑨a 战损报告用（DEC-043）：把敌人 type_id 翻成中文，面板才显示得出「伤害来源」。\n      type_id 是代码内部标识（interceptor/bomber/heavy），直接甩给玩家看不懂；\n      但中文也不该写死在脚本里 —— 文案外置，改名字不用碰代码（宪法第 3 条）。\n      unknown = 兜底：测试或未来无来源伤害会走到这里。",
     "display_name": {

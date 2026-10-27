@@ -41,8 +41,8 @@ func run(ts: TurretSystem, seq: RefitSequence) -> void:
 func _test_config(ts: TurretSystem, seq: RefitSequence) -> void:
 	_check("类型库读出 3 种炮塔（实测 %d）" % ts.variant_ids().size(),
 		ts.variant_ids().size() == 3)
-	_check("可改装槽位 = 4 门副炮（实测 %d）" % ts.swappable_ids().size(),
-		ts.swappable_ids().size() == 4)
+	_check("可改装槽位 = 3 门副炮（实测 %d，DEC-052 起底部无炮）" % ts.swappable_ids().size(),
+		ts.swappable_ids().size() == 3)
 	_check("主炮不在可改装列表（DEC-030 固定正面）",
 		not ts.swappable_ids().has(&"main"))
 	_check("开局默认装的是 flak（实测 %s）" % ts.equipped_variant(&"port"),

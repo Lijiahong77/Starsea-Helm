@@ -102,6 +102,7 @@
       "emission_enabled": false,
       "emission": [0, 0, 0]
     },
+    "_doc_feed_cams": "4 路 feed 的挂载结构（DEC-052 2026-09-14 起：左 / 右 / 上 / **前**）。\n     第 4 路原本是 ventral（船底），随底部副炮一并移除 —— 理由见 docs/bible/99_decisions.md DEC-052。\n     改成 fore 后：监控 = 「三面副炮 + 正面主炮」的全景，不再是「四个副炮面」。\n     ⚠ 第 4 路是**主炮那一路**，它没有独立的副炮炮位：点它 / 按 5 键 = 回主控室正面视角\n     （TurretSystem.focus_by_feed 与 bridge 的 VIEW_KEYS 都把 fore 特判到 main）。\n     mount 是**白盒房间尺度**的挂载点（房间前墙在 z=+1.8，故取 2.8 略在墙外）；\n     等真船体上线后删掉 mount 让它按 ship.length 推导到舰壁外（见 _hull_radius 三级优先级）。",
     "feed_cams": [
       {
         "feed": "SVPort",
@@ -125,11 +126,11 @@
         "up": [0, 0, -1]
       },
       {
-        "feed": "SVVentral",
-        "marker": "MarkerVentral",
-        "axis": [0, -1, 0],
-        "mount": [0, -0.3, 0],
-        "up": [0, 0, 1]
+        "feed": "SVFore",
+        "marker": "MarkerFore",
+        "axis": [0, 0, 1],
+        "mount": [0, 1.5, 2.8],
+        "up": [0, 1, 0]
       }
     ]
   },

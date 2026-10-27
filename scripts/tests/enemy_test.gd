@@ -61,7 +61,7 @@ func _test_sector_mapping() -> void:
 	_check("归属·带船中心偏移 ventral", Sectors.sector_of(Vector3(0, -8.5, -1.3), c) == &"ventral")
 
 
-## ② aft 必须从随机生成中排除。
+## ② aft / ventral 必须从随机生成中排除（DEC-036 推进器区 / DEC-052 船底无炮）。
 func _test_aft_excluded(sys: EnemySystem) -> void:
 	var counts := {}
 	for _i in 60:
@@ -70,6 +70,8 @@ func _test_aft_excluded(sys: EnemySystem) -> void:
 		e.queue_free()
 	var aft_count: int = int(counts.get(&"aft", 0))
 	_check("aft 随机生成数为 0（DEC-036）", aft_count == 0)
+	var ventral_count: int = int(counts.get(&"ventral", 0))
+	_check("ventral 随机生成数为 0（DEC-052 船底无炮，不该有人挨打）", ventral_count == 0)
 	_check("随机生成覆盖了多个扇区（%d 面）" % counts.size(), counts.size() >= 3)
 	print("   随机分布: %s" % str(counts))
 

@@ -35,7 +35,8 @@ const TURRET_GROUP := &"turrets"
 
 ## 该炮塔身份（玩家按 1-5 接管时按这个 id 路由）。子类构造时设。
 var turret_id: StringName = &""
-## 所属扇区（fore/port/starboard/dorsal/ventral；aft 按 DEC-036 不设炮塔）
+## 所属扇区（fore/port/starboard/dorsal/ventral；aft 按 DEC-036 不设炮塔，
+## ventral 按 DEC-052 也不设 —— 扇区定义仍在，只是这两面永远没有炮塔）。
 var sector: StringName = &""
 
 ## 当前模式：AUTO 默认（battle 开始时进入）；MANUAL 由 TurretSystem 接管时切。

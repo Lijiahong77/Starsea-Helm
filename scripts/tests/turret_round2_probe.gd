@@ -1,12 +1,12 @@
 extends Node3D
 
-## 第④步 Round 2「4 副炮接入」的独立验证场景。
+## 第④步 Round 2「3 副炮接入」的独立验证场景（DEC-052 起底部那门已移除）。
 ## 依据协作约定第 4 条：复杂功能先建独立测试场景跑通，再搬进主场景。
 ##
 ## 验证四件事：
-## ① 5 门炮塔全部注册（1 主炮 + 4 副炮），扇区归属正确
+## ① 4 门炮塔全部注册（1 主炮 + 3 副炮），扇区归属正确
 ## ② 副炮炮位 = sub_gun_instances 的 axis × hull_radius（不再写死坐标）
-## ③ BATTLE 下四门副炮**各自独立**自动开火（DEC-040：不合并 DPS / 不共享 cooldown）
+## ③ BATTLE 下三门副炮**各自独立**自动开火（DEC-040：不合并 DPS / 不共享 cooldown）
 ## ④ 弹丸命中 → 敌人扣血 → 击杀（端到端链路）
 ##
 ## ⚠ 依赖 EventBus autoload，只能在**完整主场景运行路径**下跑（`--script` 模式
@@ -21,8 +21,9 @@ extends Node3D
 
 const TURRET_DATA_PATH := "res://data/turrets.json"
 
-## 四门副炮的扇区（顺序与 data/turrets.json 的 sub_gun_instances 一致）。
-const SUB_SECTORS: Array[StringName] = [&"port", &"starboard", &"dorsal", &"ventral"]
+## 三门副炮的扇区（顺序与 data/turrets.json 的 sub_gun_instances 一致）。
+## DEC-052：ventral 已随船底副炮移除 —— 底部不设炮塔。
+const SUB_SECTORS: Array[StringName] = [&"port", &"starboard", &"dorsal"]
 
 ## 敌人从 spawn_radius(190) 飞到 attack_range(52) 需要约 8.1s，推 600 帧（10s）留余量。
 const APPROACH_FRAMES := 600
@@ -37,7 +38,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var ts := $TurretSystem as TurretSystem
 	var es := $EnemySystem as EnemySystem
-	print("=== ④ Round 2 · 4 副炮接入 · 独立验证 ===")
+	print("=== ④ Round 2 · 3 副炮接入 · 独立验证 ===")
 	if ts == null or es == null:
 		push_error("测试场景缺少 TurretSystem / EnemySystem 节点")
 		return
@@ -53,7 +54,7 @@ func _ready() -> void:
 ## ① 炮塔注册与扇区归属。
 func _test_registered(ts: TurretSystem) -> void:
 	var ids := ts.registered_ids()
-	_check("已建 5 门炮塔（1 主 + 4 副），实测 %d" % ids.size(), ids.size() == 5)
+	_check("已建 4 门炮塔（1 主 + 3 副），实测 %d" % ids.size(), ids.size() == 4)
 	for s in SUB_SECTORS:
 		_check("已注册 %s" % s, ids.has(s))
 		var t := ts.get_turret(s)
@@ -89,7 +90,7 @@ func _test_mount(ts: TurretSystem) -> void:
 			t.muzzle_pos.distance_to(expect) < 0.001)
 
 
-## ③④ 四门副炮各自独立开火 + 端到端击杀。
+## ③④ 三门副炮各自独立开火 + 端到端击杀。
 func _test_independent_fire(ts: TurretSystem, es: EnemySystem) -> void:
 	# 关掉两个系统自带的 _physics_process，改由本测试手动推进（结果确定）
 	ts.set_physics_process(false)
@@ -97,7 +98,7 @@ func _test_independent_fire(ts: TurretSystem, es: EnemySystem) -> void:
 
 	var enemies: Array[Enemy] = []
 	for s in SUB_SECTORS:
-		# ⚠ DEC-049：钉成 hold。本用例验的是「四门副炮各自独立开火 + 端到端击杀」，
+		# ⚠ DEC-049：钉成 hold。本用例验的是「三门副炮各自独立开火 + 端到端击杀」，
 		# 而拦截机现在默认绕飞 —— 绕飞会**跨扇区**，各炮的锁定目标会漂移，
 		# 于是失败就分不清是"炮的问题"还是"飞行正常"。一次只让一个变量动。
 		enemies.append(es.spawn_one(&"interceptor", s, &"hold"))
@@ -110,7 +111,7 @@ func _test_independent_fire(ts: TurretSystem, es: EnemySystem) -> void:
 	for e in enemies:
 		if e.is_engaged():
 			engaged += 1
-	_check("4 个敌人全部进入攻击距离（实测 %d/4）" % engaged, engaged == 4)
+	_check("3 个敌人全部进入攻击距离（实测 %d/3）" % engaged, engaged == 3)
 
 	# 开战 → 副炮自动开火
 	ts.set_battle_active(true)
@@ -146,7 +147,7 @@ func _test_independent_fire(ts: TurretSystem, es: EnemySystem) -> void:
 	for e in enemies:
 		if e.is_dead():
 			dead += 1
-	_check("敌人被击杀（实测 %d/4）" % dead, dead >= 1)
+	_check("敌人被击杀（实测 %d/3）" % dead, dead >= 1)
 
 	# 顺带确认主炮也没闲着（同一套 advance 循环，验证没被 Round 2 改坏）
 	var main_fired := 0

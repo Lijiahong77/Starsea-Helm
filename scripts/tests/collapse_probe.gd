@@ -35,10 +35,11 @@ func run(ts: TurretSystem, col: CollapseSequence) -> void:
 # ---------------------------------------------------------------- ① 初始态
 
 func _test_initial(col: CollapseSequence) -> void:
+	# DEC-052：第四路是 fore（主炮那一路），不再是 ventral（船底已无炮）
 	_check("开局四路全 OK", col.sector_state(&"port") == CollapseSequence.SectorState.OK
 		and col.sector_state(&"starboard") == CollapseSequence.SectorState.OK
 		and col.sector_state(&"dorsal") == CollapseSequence.SectorState.OK
-		and col.sector_state(&"ventral") == CollapseSequence.SectorState.OK)
+		and col.sector_state(&"fore") == CollapseSequence.SectorState.OK)
 	_check("开局未锁输入（无 L3）", not col.is_locked())
 	_check("开局无宣告文案（实测 «%s»）" % col.announce_text(), col.announce_text() == "")
 
@@ -86,10 +87,26 @@ func _test_l2_breached(ts: TurretSystem, col: CollapseSequence) -> void:
 # ---------------------------------------------------------------- ④ L3 终局
 
 func _test_l3(ts: TurretSystem, col: CollapseSequence) -> void:
-	# 打掉剩余炮塔（含主炮 main）→ 全部炮塔被毁 → all_turrets_destroyed → 启动 L3。
+	# ⑥ **主炮陷落 → 正面那块屏打红叉**（DEC-052 起 fore 才有屏，此前 fore 无屏可标记）。
+	# ⚠ 这是条**顺序敏感的**用例，别挪位置也别改成直接 emit 信号：
+	# 主炮不算槽位（不可换），_refresh_sector(fore) 恒得 mounted=0 → 恒判 OK。
+	# 而信号分发顺序是「TurretSystem 先收到 turret_destroyed → 它 emit sector_breached
+	# → CollapseSequence 收到 sector_breached 设 BREACHED → CollapseSequence 才收到
+	# turret_destroyed → _refresh_sector 又把 fore 抹回 OK」。
+	# 也就是说：只要 _refresh_sector 允许把 BREACHED 降级，主炮那块屏的红叉就会被自己抹掉。
+	# 其余三路看不出来（它们 mounted>0，_refresh_sector 会重新判成 BREACHED）—— **只有 fore 会暴露**。
+	var main := ts.get_turret(&"main")
+	_check("能取到主炮", main != null)
+	if main == null:
+		return
+	main.take_damage(9999.0, &"interceptor")
+	_check("主炮陷落 → fore 是 BREACHED（实测 %d）" % col.sector_state(&"fore"),
+		col.sector_state(&"fore") == CollapseSequence.SectorState.BREACHED)
+
+	# 打掉剩余炮塔 → 全部炮塔被毁 → all_turrets_destroyed → 启动 L3。
 	# ⚠ main 主炮也计入 alive_count()（DEC-037 失败条件 = **所有**炮塔被毁），
 	# 漏掉 main 就不会触发终局。
-	for sid in [&"main", &"starboard", &"dorsal", &"ventral"]:
+	for sid in [&"starboard", &"dorsal"]:
 		var t := ts.get_turret(sid)
 		if t != null and not t.destroyed:
 			t.take_damage(9999.0, &"interceptor")

@@ -155,7 +155,7 @@ func _test_anti_blowout() -> void:
 	await _frames(1)
 	var crit := &"sfx_turret_critical"
 	AudioManager.play_sfx(crit, &"dorsal")
-	AudioManager.play_sfx(crit, &"ventral")
+	AudioManager.play_sfx(crit, &"starboard")
 	_check("同帧两个不同扇区各播一次（实测 %d）" % AudioManager.play_count(crit),
 		AudioManager.play_count(crit) == 2)
 
@@ -194,8 +194,9 @@ func _test_sector_hud() -> void:
 		"port": [1.15, false],
 		"starboard": [0.90, false],
 		"dorsal": [1.30, false],
-		"ventral": [0.65, false],
 	}
+	# ⚠ 这里**故意没有 ventral**：DEC-052 起船底不设炮塔，底部不会有受击音，
+	# 配置里也删了对应项（audio.json sector_hud）。加回来之前先想清楚底部是不是又有炮了。
 	var id := &"sfx_crisis_cleared"
 	for key in expect:
 		var sector := StringName(key)

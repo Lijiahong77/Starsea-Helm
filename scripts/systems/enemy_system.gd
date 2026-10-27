@@ -71,7 +71,7 @@ func _ready() -> void:
 	if DEBUG_LOG:
 		print("[enemy] 配置就绪 center=%s spawn_r=%.0f 锥半角=%.0f° atk_r=%.0f pressure_ref=%.0f" % [
 			str(_ship_center), _spawn_radius, _spawn_cone_deg, _attack_range, _pressure_ref])
-		print("[enemy] 六面权重 %s（aft=0 即永不来敌，DEC-036）" % str(_dist))
+		print("[enemy] 六面权重 %s（权重 0 = 永不来敌：aft 依 DEC-036、ventral 依 DEC-052）" % str(_dist))
 
 
 func _physics_process(delta: float) -> void:
@@ -187,7 +187,12 @@ func _pick_sector() -> StringName:
 		r -= float(_dist.get(id, 0.0))
 		if r <= 0.0:
 			return id
-	return Sectors.IDS[-1]
+	# 走到这里只可能是浮点误差（r 恰好等于 total）。
+	# ⚠ 不能 `return Sectors.IDS[-1]`：IDS 的最后一个是 **ventral**，而它从 DEC-052 起
+	# 权重恒为 0（船底无炮，不该来敌）。沿这个兜底把敌人扔到底部，等于给自己
+	# 造一个"玩家挨打却还不了手"的幽灵 bug —— 回退 fore 与上面的全零分支一致。
+	push_warning("扇区权重采样落到兜底分支（r=%f / total=%f），回退 fore" % [r, total])
+	return &"fore"
 
 
 ## 以 axis 为中心轴、半角 `_spawn_cone_deg` 的锥内均匀采样一个单位向量。

@@ -167,7 +167,7 @@ Starsea Helm/
 ├── scenes/
 │   ├── bridge/              ← 主控室、监控视角锚点、舷窗
 │   ├── enemies/
-│   ├── weapons/             ← 主炮 + 四向副炮
+│   ├── weapons/             ← 主炮 + 三向副炮（底部无炮，DEC-052）
 │   └── ui/
 ├── scripts/
 │   ├── core/                ← autoload：EventBus / GameStateManager / AudioManager

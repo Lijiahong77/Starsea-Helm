@@ -27,7 +27,7 @@ const AXIS_FALLBACK := {
 	"SVPort": Vector3(-1, 0, 0),
 	"SVStarboard": Vector3(1, 0, 0),
 	"SVDorsal": Vector3(0, 1, 0),
-	"SVVentral": Vector3(0, -1, 0),
+	"SVFore": Vector3(0, 0, 1),
 }
 const STANDOFF_RATIO := 0.75
 

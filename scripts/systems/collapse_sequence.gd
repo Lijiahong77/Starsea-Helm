@@ -20,12 +20,18 @@ const DATA_PATH := "res://data/presentation.json"
 
 ## 扇区 → 屏幕节点路径（相对 bridge）。**结构映射**，不是数值。
 ## 与 bridge_whitebox.gd 的 SCREEN_FEED 一一对应 —— 改了那边记得同步这里。
-## fore（主炮）没有 feed（DEC-026 单面舷窗是正面的），不参与标记。
+##
+## **fore（主炮）从 DEC-052 起有屏幕了**：第 4 路 feed 由 ventral（船底）改成 fore，
+## 所以「主炮被毁 → 正面那块屏打红叉」终于成立（此前 fore 无屏可打标记）。
+## ⚠ 但 fore **只会走到 L2，不会走到 L1**：L1 的 "%d/%d" 统计的是槽位（all_slot_ids），
+## 而主炮不在槽位表里（它不可换、不算槽，见 TurretSystem._load_and_build_turrets），
+## 于是 _refresh_sector(fore) 恒得 mounted=0 → 状态 OK。这正好是对的 ——
+## 主炮只有一门，不存在「还剩一门」这种中间态，要么在、要么没了。
 const SCREEN_PATHS := {
 	&"port": "MonitorPanel/ScreenPort",
 	&"starboard": "MonitorPanel/ScreenStarboard",
 	&"dorsal": "MonitorPanel/ScreenDorsal",
-	&"ventral": "MonitorPanel/ScreenVentral",
+	&"fore": "MonitorPanel/ScreenFore",
 }
 
 enum SectorState { OK, DEGRADED, BREACHED }
@@ -134,6 +140,15 @@ func _refresh_sector(sector: StringName) -> void:
 				alive += 1
 	_alive[sector] = alive
 	_mounted[sector] = mounted
+	# ⚠ **BREACHED 是终态**：只能由 _reset()（开战）清，本函数不允许把它降级回 OK / DEGRADED。
+	# 原因（顺序敏感，别删）：一次 turret_destroyed 的分发顺序是
+	#   ① TurretSystem 先收到 → 判定该面已无存活炮塔 → emit sector_breached → 本对象设 BREACHED
+	#   ② 本对象**之后**才收到同一条 turret_destroyed → 调本函数
+	# 而 fore（主炮）不在槽位表里，mounted 恒为 0 → 本函数恒判 OK。
+	# 若允许降级，主炮那块屏的红叉会在同一次事件里被自己抹掉（实测如此，2026-09-15 复查发现）。
+	# 其余三路看不出这个问题：它们 mounted>0，本函数会重新判回 BREACHED。
+	if int(_state.get(sector, SectorState.OK)) == SectorState.BREACHED:
+		return
 	if mounted > 0 and alive == 0:
 		_set_sector_state(sector, SectorState.BREACHED)
 	elif mounted > 0 and alive < mounted:

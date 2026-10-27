@@ -4,7 +4,7 @@ class_name TurretSystem
 ## 炮塔编排系统（MODULES §四 Round 1 + Round 2）
 ##
 ## **职责**：
-##   ① _ready 时建所有炮塔（Round 1：1 主炮；Round 2：+ 4 副炮）
+##   ① _ready 时建所有炮塔（Round 1：1 主炮；Round 2：+ 3 副炮 —— DEC-052 起删掉底部那门）
 ##   ② _physics_process 推进每个 turret.advance(delta) + 收尾 Projectile
 ##   ③ 输入路由（**看/打分离**，DEC-048）：数字键 1-5 或点 feed → **切视角**（不动炮塔模式）；
 ##      鼠标右键 → **接管**当前所看的那门（切 MANUAL）；
@@ -369,7 +369,13 @@ func _ready() -> void:
 				str(id), str(t.sector), str(t.muzzle_pos), t.fire_range, t.hp])
 
 
-## 读 turrets.json 建炮塔：1 主炮（fore）+ 4 副炮（port/starboard/dorsal/ventral）。
+## 读 turrets.json 建炮塔：1 主炮（fore）+ 3 副炮（port/starboard/dorsal）。
+##
+## ⚠ DEC-052（2026-09-14）：ventral（船底）副炮已移除，副炮从 4 门降到 3 门。
+## 理由：几乎没有飞船会专门攻击底部，底部视角别扭，着陆也需要平整面 ——
+## 船底留白反而让外形有视觉平衡。于是「有炮的面」= 前（主炮）+ 左 / 右 / 上（副炮），
+## 底部与 aft 一样成为**无炮面**（敌人不主攻，见 enemies.json 的 sector_distribution）。
+## 影响面：起始槽位 4→3，扩展槽位 4→3，总槽位 8→6。
 ##
 ## 副炮 mount 不写死坐标：由 sub_gun_instances 的 `axis × hull_radius` 推导
 ## （2026-09-06 预修复）。axis 与 Sectors.AXES 同向，hull_radius 来自船体尺寸。
@@ -879,9 +885,10 @@ func _sector_has_alive(sector: StringName) -> bool:
 ## **点 feed = 切去看那一路**（不是接管）—— 与数字键 2-5 走同一条路，
 ## 保持"点屏"和"按键"是同一个动作的两种输入方式（DEC-048 起两者都只切视角）。
 ##
-## 4 路 feed 各对应一门副炮，且**炮塔 id == 扇区名**（见 _load_and_build_turrets ②），
-## 所以这里直接把 sector 当 id 用。fore 没有副炮（主炮固定正面，DEC-030），
-## 所以 fore 落到主炮的视角（= 留在主控室）。
+## 有副炮的 3 路 feed 各对应一门副炮，且**炮塔 id == 扇区名**（见 _load_and_build_turrets ②），
+## 所以这里直接把 sector 当 id 用。
+## fore 那一路上是**主炮**（固定正面，DEC-030；DEC-052 起它占了原来底部的第 4 块屏），
+## 所以 fore 落到 main —— 主炮不是"舰外的一个炮位"，视角就是主控室本身。
 func focus_by_feed(sector: StringName) -> void:
 	if sector == &"fore":
 		focus(&"main")

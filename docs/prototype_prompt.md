@@ -23,11 +23,11 @@ The bridge has a SINGLE FORWARD WINDOW. You can literally see the battle only in
 REFIT (no time limit) -> BATTLE (one wave) -> REFIT -> ... until all turrets are destroyed -> RESULT -> "again" (same ship, unlocks kept).
 
 ## Six sectors around the ship
-fore (the only one visible through the window), aft (engine exhaust; enemies almost never come from here), port, starboard, dorsal, ventral.
+fore (the only one visible through the window), aft (engine exhaust; enemies almost never come from here), port, starboard, dorsal, ventral (**DEC-052: no turret on ventral — ship belly stays clean for landing**).
 
 ## Turrets
 - MAIN GUN (1 group): fixed, only fires at fore. Fires DISCRETE PROJECTILES that take time to fly (~200 m/s), so hitting requires leading the target. Highest damage, highest durability (150-250), usually the last to fall.
-- SUB TURRETS: one group per side (port/starboard/dorsal/ventral), 0-N guns per side. Medium durability (60-100 each). When every sub turret on a side is destroyed, that side is BREACHED.
+- SUB TURRETS: one group per side (port/starboard/dorsal — **no ventral group since DEC-052**), 0-N guns per side. Medium durability (60-100 each). When every sub turret on a side is destroyed, that side is BREACHED.
 - Every turret has two modes:
   - AUTO (default): fires on its own, slowly and intermittently (sub turret ~1 shot every 3s), auto-aimed, low DPS. Enough to hold, not enough to win.
   - MANUAL: the player takes over that ONE turret, aims and fires themselves at a much higher rate. Only one turret at a time.
@@ -50,13 +50,13 @@ There is NO movement, NO resource management, NO issuing orders, NO active abili
 
 ## Turret types (unlock automatically by crisis count, NO currency)
 rapid (high rate, low damage) | heavy (slow, high damage, tanky) | spread (hits several targets, good vs swarm) | aa (bonus vs interceptors) | anti_armor (bonus vs heavies) | aoe (splash, clears clusters).
-Start with one standard sub turret on each of the four sides + the standard main gun. Unlock one new type at crises 3, 5, 7, 9, 11. Growth also comes from unlocking EXTRA SLOTS so one side can stack more guns.
+Start with one standard sub turret on each of the three sides (port/starboard/dorsal) + the standard main gun. (The 4th monitor feed shows the fore main-gun view instead of a belly turret — DEC-052.) Unlock one new type at crises 3, 5, 7, 9, 11. Growth also comes from unlocking EXTRA SLOTS so one side can stack more guns.
 
 ## Screen layout — recreate this
 +---------------------------------------------------------------+
 |  FORWARD WINDOW (big, ~65% width)    |  MONITORS (2x2 grid)    |
 |  the only live view you get:         |  [ PORT ]  [STARBOARD]  |
-|  fore sector, main gun projectiles,  |  [DORSAL]  [ VENTRAL ]  |
+|  fore sector, main gun projectiles,  |  [DORSAL]  [  FORE  ]  |
 |  incoming enemies                    |  tiny, low-res, ~8 fps  |
 |                                      |  click one = take over  |
 |  [F] take over main gun              |  that turret's view     |
@@ -80,7 +80,8 @@ const CONFIG = {
     heavy:       { hp: 300, speed: 7,  turretDps: 8,  armor: 6 },
   },
   spawnRadius: 170, attackRange: 50,
-  sectorWeights: { fore: 0.25, port: 0.2, starboard: 0.2, dorsal: 0.15, ventral: 0.15, aft: 0.05 },
+  // DEC-052: ventral = 0 (no belly turret -> no threat from below either)
+  sectorWeights: { fore: 0.3, port: 0.24, starboard: 0.24, dorsal: 0.22, ventral: 0.0, aft: 0.0 },
   waveGrowth: 1.35,
   windowFovDeg: 70,
   monitorFps: 8,
@@ -124,11 +125,11 @@ Currency, shops, drops, repair, hull integrity, shields, energy/mana, skill tree
 装配（无时限）→ 战斗（一波）→ 装配 → …… 直到所有炮塔被毁 → 结算 → 再来一次（同一艘船，保留解锁）。
 
 ## 六个扇区
-fore（唯一肉眼可见）、aft（推进器尾焰，敌人几乎不来）、port、starboard、dorsal、ventral。
+fore（唯一肉眼可见）、aft（推进器尾焰，敌人几乎不来）、port、starboard、dorsal、ventral（**DEC-052：底部不设炮塔，留白给着陆面与视觉平衡**）。
 
 ## 炮塔
 - 主炮（1 组）：固定，只打正前。发射有飞行时间的离散弹丸（~200 m/s），命中需要打提前量。伤害最高、耐久最高（150–250），通常最后才沦陷。
-- 副炮：四个方向各一组，每面可 0–N 门。单门耐久 60–100。某面副炮全灭 = 该面失守。
+- 副炮：三个方向各一组（左 / 右 / 上；**底部无炮，DEC-052**），每面可 0–N 门。单门耐久 60–100。某面副炮全灭 = 该面失守。
 - 每门炮两态：
   - 自动（默认）：自己慢慢打（副炮约 3 秒一发），自动瞄准，DPS 低 —— 拖得住，赢不了。
   - 手动：玩家接管这一门，自己瞄准、射速大幅提高。同时只能接管一门。
@@ -148,13 +149,13 @@ fore（唯一肉眼可见）、aft（推进器尾焰，敌人几乎不来）、p
 
 ## 炮塔类型（按危机数自动解锁，无货币）
 速射（高射速低单发）/ 重炮（慢、高伤、耐打）/ 散射（打多目标，克集群）/ 对空（克拦截机）/ 对重甲（克重甲）/ 范围（溅射清场）。
-开局：四向各一门标准副炮 + 标准主炮。在第 3、5、7、9、11 次危机各解锁一种。成长还来自解锁「额外槽位」，让同一面能叠更多炮。
+开局：三向各一门标准副炮（左 / 右 / 上）+ 标准主炮。在第 3、5、7、9、11 次危机各解锁一种。成长还来自解锁「额外槽位」，让同一面能叠更多炮。
 
 ## 界面布局（照这个来）
 +---------------------------------------------------------------+
 |  前向舷窗（大，约 65% 宽）              |  监控 2x2              |
 |  唯一实时可见的画面：                    |  [ 左舷 ][ 右舷 ]      |
-|  fore 扇区、主炮弹丸、来袭敌人           |  [ 上极 ][ 下极 ]      |
+|  fore 扇区、主炮弹丸、来袭敌人           |  [ 上极 ][ 正面 ]      |
 |                                         |  小、低清、约 8fps     |
 |  [F] 接管主炮                            |  点一下 = 接管该面视角 |
 |                                         |-----------------------|
@@ -192,7 +193,7 @@ fore（唯一肉眼可见）、aft（推进器尾焰，敌人几乎不来）、p
 ## 三、极简版（token 受限 / 平台输入框很短时用）
 
 ```
-Make a single-file HTML5 Canvas prototype (no libraries, no assets) of a spaceship defense game. The ship is stationary and surrounded by 6 sectors; the player only SEES the forward direction through one window, and must rely on 4 small monitor feeds + a radar for the other sides. One fixed main gun covers the front; each of the 4 side sectors (port/starboard/dorsal/ventral) can hold 0-N sub turrets. All turrets auto-fire slowly by default; the player may TAKE OVER one turret at a time to fire much faster. Enemies fly in slowly, stop at range, and chew through the nearest turret's durability; a side is breached when its sub turrets all die; the run ends when every turret is destroyed. Between waves the player REFITS with no time limit, swapping among 6 turret types unlocked by crisis count (no currency). Player has only 3 verbs: fit / take over / scan. Put every number in one top-level CONFIG object and add a live tuning panel. Add a headless "benchmark" button that simulates 20 runs with a random loadout vs 20 runs with a thoughtful loadout and prints the average crises survived for each — the design only works if the gap is >= 3 crises. Keep art to plain shapes. No economy, no shields, no skills, no story.
+Make a single-file HTML5 Canvas prototype (no libraries, no assets) of a spaceship defense game. The ship is stationary and surrounded by 6 sectors; the player only SEES the forward direction through one window, and must rely on 4 small monitor feeds + a radar for the other sides. One fixed main gun covers the front; each of the 3 side sectors (port/starboard/dorsal — the belly has no turret) can hold 0-N sub turrets; the 4th monitor feed shows the forward main-gun view. All turrets auto-fire slowly by default; the player may TAKE OVER one turret at a time to fire much faster. Enemies fly in slowly, stop at range, and chew through the nearest turret's durability; a side is breached when its sub turrets all die; the run ends when every turret is destroyed. Between waves the player REFITS with no time limit, swapping among 6 turret types unlocked by crisis count (no currency). Player has only 3 verbs: fit / take over / scan. Put every number in one top-level CONFIG object and add a live tuning panel. Add a headless "benchmark" button that simulates 20 runs with a random loadout vs 20 runs with a thoughtful loadout and prints the average crises survived for each — the design only works if the gap is >= 3 crises. Keep art to plain shapes. No economy, no shields, no skills, no story.
 ```
 
 ---

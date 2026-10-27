@@ -3,7 +3,7 @@
   "_doc_canon": "权威区间见 docs/bible/03_rules.md §一（炮塔）。所选数值落在白盒中间值，下一步接入真实美术时再按手感调。",
   "_doc_dps_calc": "projectile_damage = auto_dps × auto_fire_interval（每发子弹造成的伤害等于该秒数内的 DPS 贡献），自动模式按时打就等于 DPS 守恒。手动模式由玩家扳机触发，不走 DPS，自动 / 手动的「DPS 差距」由玩家射速决定 —— 这是 DEC-030 + bible §一第 22 行的核心权衡。",
   "_doc_lifetime": "projectile_max_lifetime 决定最大射程。200 m/s × 4 s = 800 m 远大于实际 range=130，留余量防「打飞远处看不见的目标」。",
-  "_doc_round_2": "sub_gun_* 段已于 2026-09-06 Round 2 接入：4 门副炮（port/starboard/dorsal/ventral）\n           由 sub_gun_template 提供数值、sub_gun_instances 提供炮位，已跑通自动开火 + 击杀。\n           DEC-040：同扇区装多门炮时**各自独立**开火（各自 cooldown / 各自锁敌），不合并 DPS。",
+  "_doc_round_2": "sub_gun_* 段已于 2026-09-06 Round 2 接入：3 门副炮（port/starboard/dorsal）\n           由 sub_gun_template 提供数值、sub_gun_instances 提供炮位，已跑通自动开火 + 击杀。\n           DEC-040：同扇区装多门炮时**各自独立**开火（各自 cooldown / 各自锁敌），不合并 DPS。\n           ⚠ **ventral（底部）副炮已于 2026-09-14 按 DEC-052 移除**：船底不设炮塔\n           （几乎没有飞船专门攻击底部，底部视角别扭，且着陆需要平整面、留白也是视觉平衡）。\n           底部因此成为和 aft 同类的「无炮面」——敌人不主攻（enemies.json 权重 0）。",
   "_doc_fire_sfx": "fire_sfx = 开火音效 id，指向 data/audio.json 的 sfx 段（2026-09-10，⑩ 音频）。\n           为什么要一门一型：三种副炮是**横向差异**（速射 / 标准 / 重甲），\n           射速差 3 倍、单发差 4.5 倍，用同一个音会让玩家**听不出自己换的是哪门**。\n           音效路径与音量全在 audio.json，这里只存 id —— 换音不改本文件。",
   "main_gun": {
     "sector": "fore",
@@ -81,14 +81,13 @@
     }
   },
   "sub_gun_instances": {
-    "_doc": "Round 2 副炮 mount（2026-09-06 预修复）：不再写死坐标，改用 hull_radius + axis 推导，\n           TurretSystem 在 _build_one_sub 里算 mount = axis × hull_radius。\n           数值 11.5 / 8.5 来自 ship.width=22 / ship.height=16（presentation.json 默认）÷ 2 + hull_offset=0.5。\n           四门副炮分守四向，符合 DEC-026 + DEC-038「副炮视角 = 在舰体外表面」。\n           这 4 个是**开局槽位**（unlock_at_crisis 恒为 0，开局自动装 flak）；\n           后解锁的槽位见 extra_slots。",
+    "_doc": "Round 2 副炮 mount（2026-09-06 预修复）：不再写死坐标，改用 hull_radius + axis 推导，\n           TurretSystem 在 _build_one_sub 里算 mount = axis × hull_radius。\n           数值 11.5 / 8.5 来自 ship.width=22 / ship.height=16（presentation.json 默认）÷ 2 + hull_offset=0.5。\n           ⚠ DEC-052（2026-09-14）：**只剩 3 个起始槽位**（原 4 个，删 ventral）。\n           底部不设炮塔 —— 没有飞船会专门绕到底下打，底部视角也别扭，且着陆需要平整面。\n           剩下的三面（左/右/上）仍符合 DEC-026 + DEC-038「副炮视角 = 在舰体外表面」。\n           这 3 个是**开局槽位**（unlock_at_crisis 恒为 0，开局自动装 flak）；\n           后解锁的槽位见 extra_slots。",
     "port":      {"hull_radius": 11.5, "axis": [-1, 0, 0]},
     "starboard": {"hull_radius": 11.5, "axis": [1, 0, 0]},
-    "dorsal":    {"hull_radius": 8.5,  "axis": [0, 1, 0]},
-    "ventral":   {"hull_radius": 8.5,  "axis": [0, -1, 0]}
+    "dorsal":    {"hull_radius": 8.5,  "axis": [0, 1, 0]}
   },
   "extra_slots": {
-    "_doc": "⑦ 扩展槽位（DEC-042，2026-09-09）：撑过 N 次危机后多开一个炮位，节奏见 unlock_at_crisis。\n           形态 = **每路 feed 两个炮位**（李 2026-09-09 澄清）：原本 4 路各 1 门炮，\n           现在每路可以装第 2 门，总槽位 4 → 8。**不是**新增第五、第六个「面」——\n           监控固定 4 路（bible monitor.feed_count=4），第二炮位共享它所在那一路画面，\n           所以扩展不能凭空多出一个方向，只能在已有的四路里各塞一门。\n           mount = axis × hull_radius + mount_offset：沿 -Z 向船尾错开 3.5 m（船长 64，绰绰有余），\n           同路两门不重叠，且**两门都落在同一路 feed 的视野里**。\n           sector 沿用所在那一路（port2 仍属 port 扇区），于是\n           「同路两门都死了才算这面失守」天然成立，不需要额外判定。\n           解锁**分批**：先左右舷（危机 2 / 3，船体最宽摆得开），后顶底（危机 5 / 6）。\n           槽位解锁时是**空的** —— 玩家得自己挑一门装上去，这个动作本身就是装配乐趣；\n           自动送一门 flak 等于替玩家做决定，装配乐趣直接归零。",
+    "_doc": "⑦ 扩展槽位（DEC-042，2026-09-09；DEC-052 2026-09-14 修订）：撑过 N 次危机后多开一个炮位，节奏见 unlock_at_crisis。\n           形态 = **每路 feed 两个炮位**（李 2026-09-09 澄清）：DEC-052 起是 3 路（左/右/上，底部已无炮），\n           每路可以装第 2 门，总槽位 3 → 6。**不是**新增第五、第六个「面」——\n           监控固定 4 路（bible monitor.feed_count=4，第 4 路是 fore 主炮正面），第二炮位共享它所在那一路画面，\n           所以扩展不能凭空多出一个方向，只能在已有的有炮三路里各塞一门。\n           mount = axis × hull_radius + mount_offset：沿 -Z 向船尾错开 3.5 m（船长 64，绰绰有余），\n           同路两门不重叠，且**两门都落在同一路 feed 的视野里**。\n           sector 沿用所在那一路（port2 仍属 port 扇区），于是\n           「同路两门都死了才算这面失守」天然成立，不需要额外判定。\n           解锁**分批**：先左右舷（危机 2 / 3，船体最宽摆得开），后顶部（危机 4）。\n           原节奏是 2/3/5（dorsal2 在危机 5、后面还有 ventral2 在 6）；\n           DEC-052 删掉底部那一路后总槽位 8→6，若 dorsal2 仍留在 5，\n           危机 5 之后就再也没有解锁点，成长曲线会在末段塌掉 —— 故提前一档到 4。\n           槽位解锁时是**空的** —— 玩家得自己挑一门装上去，这个动作本身就是装配乐趣；\n           自动送一门 flak 等于替玩家做决定，装配乐趣直接归零。",
     "port2": {
       "sector": "port",
       "hull_radius": 11.5, "axis": [-1, 0, 0], "mount_offset": [0, 0, -3.5],
@@ -102,12 +101,7 @@
     "dorsal2": {
       "sector": "dorsal",
       "hull_radius": 8.5, "axis": [0, 1, 0], "mount_offset": [0, 0, -3.5],
-      "unlock_at_crisis": 5
-    },
-    "ventral2": {
-      "sector": "ventral",
-      "hull_radius": 8.5, "axis": [0, -1, 0], "mount_offset": [0, 0, -3.5],
-      "unlock_at_crisis": 6
+      "unlock_at_crisis": 4
     }
   }
 }

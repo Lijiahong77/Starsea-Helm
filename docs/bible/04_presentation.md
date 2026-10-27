@@ -230,7 +230,10 @@ DEC-026 说「舷窗只朝前、约 100–120°」。这个角度是**算出来�
 
 - 监控屏距眼 0.9 – 1.2 m，**向下倾斜 25 – 35°**
 - 玩家平视舷窗时，用**下视野余光**就能读到其余四面状态
-- 4 块画面 = 左右上下四门副炮的实时 feed（SubViewport 渲染到控制台屏幕网格）
+- 4 块画面 = **左 / 右 / 上三路副炮 + 正面主炮**的实时 feed（SubViewport 渲染到控制台屏幕网格）
+  ⚠ DEC-052（2026-09-14）：第 4 路原本是 `ventral`（船底副炮），已随底部炮塔一并移除、改成 `fore`。
+  **块数仍是 4、屏幕位置不变**，只是「四路副炮」变成了「三面副炮 + 正面主炮」——
+  余光扫读的负担没变，所以 `feed_count=4` 这条硬约定不需要改。
 
 ⭐ **这是用户那句「监控屏只需要简单看一看」的物理实现** —— 不靠玩家自律去扫视，而是放进余光里。若把监控屏放侧墙，玩家得在「看战场」和「看信息」间反复转头，低 APM 设计立刻崩。
 
@@ -351,7 +354,7 @@ DEC-026 说「舷窗只朝前、约 100–120°」。这个角度是**算出来�
 | `bridge.console_distance` | 站位到玻璃距离 | 1.4 – 2.2 m ⭐ 决定视野角 |
 | `bridge.console_screen_distance` | 监控屏（4 路 feed）距眼 | 0.9 – 1.2 m |
 | `bridge.console_screen_tilt` | 监控屏倾角 | 25 – 35° |
-| `monitor.feed_count` | 常驻 feed 路数 | 4（port / starboard / dorsal / ventral 各一） |
+| `monitor.feed_count` | 常驻 feed 路数 | 4（port / starboard / dorsal 三路副炮 + **fore 主炮正面**一路；原第 4 路是 ventral，DEC-052 移除） |
 | `monitor.feed_width` / `feed_height` | 单路 feed 分辨率 | 320×180 – 512×288 |
 | `monitor.feed_fps` | 单路 feed 渲染帧率 | 8 – 12 fps |
 | `ship.length` / `width` / `height` | 飞船尺寸 | 64 / 22 / 16 m |
